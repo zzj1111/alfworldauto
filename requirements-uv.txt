@@ -1,0 +1,58 @@
+# Pinned dependency set for the ALFWorld AutoScaffold / GiGPO-helper training path
+# (agent_system/skill_opt/autoscaffold/ + agent_system/skill/ + GiGPO ALFWorld actor).
+#
+# Same shared base stack as StitchCUDA's requirements-uv.txt (this and StitchCUDA's
+# /dev/shm/verl_env are, in fact, the SAME environment: /dev/shm/verl_env is a tmpfs
+# staging copy of the persistent conda env at /mnt/data1/zha00175/miniconda/envs/verl —
+# confirmed by identical directory mtimes, and the "tmpfs copy ... else the NFS original"
+# fallback logic in examples/gigpo_trainer/run_alfworld_frombase.sh). So this file is the
+# same base + the ALFWorld-specific env packages, verified from that conda env directly.
+#
+# Install order matters — see UV_INSTALL.md. flash-attn's wheel is ABI-pinned to
+# torch==2.8.0 cp312; install torch first.
+
+# --- core verl / training loop ---
+accelerate==1.12.0
+codetiming==1.4.0
+datasets==4.4.1
+dill==0.4.0
+hydra-core==1.3.2
+numpy==2.2.6
+pandas==2.3.3
+peft==0.18.0
+pyarrow==22.0.0
+pybind11==3.0.1
+pylatexenc==2.10
+ray[default]==2.52.1
+torchdata==0.11.0
+tensordict==0.10.0
+transformers==4.56.1
+wandb==0.23.1
+packaging==25.0
+tensorboard==2.20.0
+
+# --- GPU stack (Hopper / sm_90 build; adjust TORCH_CUDA_ARCH_LIST for other GPUs) ---
+torch==2.8.0
+torchvision==0.23.0
+torchaudio==2.8.0
+ninja==1.13.0
+
+# --- rollout backend (actor_rollout_ref.rollout.name=vllm; watchdog.py also runs a
+# standalone `vllm serve` for the GiGPO-trained "Actor" helper model) ---
+vllm==0.11.0
+flashinfer-python==0.3.1
+fastapi==0.124.0
+uvicorn==0.38.0
+
+# --- ALFWorld environment itself ---
+alfworld==0.4.2
+textworld==1.7.0
+gym==0.26.2
+gymnasium==0.29.1
+
+# --- skill_opt Teacher (GPT-5.5 controller calls — same pattern as StitchCUDA's
+# cudascaffold/teacher.py, which was in fact ported FROM this module) ---
+openai==1.99.1
+
+# --- flash-attn: official Dao-AILab GitHub release wheel, not a plain PyPI package for
+# this exact build (cp312, torch2.8, cu12, cxx11abiFALSE). See UV_INSTALL.md.
