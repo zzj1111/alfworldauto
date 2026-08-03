@@ -12,7 +12,7 @@
 # torch==2.8.0 cp312; install torch first.
 
 # --- core verl / training loop ---
-accelerate==1.12.0
+accelerate==1.14.0
 codetiming==1.4.0
 datasets==4.4.1
 dill==0.4.0
