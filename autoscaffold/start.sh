@@ -62,6 +62,11 @@ case "$repo_fs" in
   nfs*|lustre|gpfs|cifs|fuse*) bad "the REPO sits on $repo_fs (network fs)"     "clone to node-local disk and launch from there — parallel worker imports over NFS have taken this node to load 380+" ;;
   *) okay "repo on $repo_fs" ;;
 esac
+py_fs=$(df --output=fstype "$(dirname "$(readlink -f "$ARM_PYTHON")")" 2>/dev/null | tail -1 | tr -d ' ')
+case "$py_fs" in
+  nfs*|lustre|gpfs|cifs|fuse*) bad "the PYTHON ENVIRONMENT sits on $py_fs (network fs)"     "copy the env to node-local disk (cp -a works; only bin/python is invoked directly) — torch+vllm are thousands of files and 256 workers importing them over NFS is the same storm as the repo case; this exact miss relaunched the storm once" ;;
+  *) okay "python env on $py_fs" ;;
+esac
 ws_fs=$(df --output=fstype "$ARM_WORKSPACE" 2>/dev/null | tail -1 | tr -d ' ')
 case "$ws_fs" in
   nfs*|lustre|gpfs|cifs|fuse*) note "workspace on $ws_fs — acceptable only as the checkpoint root (few large writers); keep exp state and logs local" ;;
