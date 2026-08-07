@@ -207,8 +207,10 @@ def ensure_hf(ckpt, cfg):
     if os.path.isfile(os.path.join(target, "config.json")):
         return target
     log = C.stamped(os.path.join(cfg["state_dir"], f"merge_s{step_of(ckpt)}.log"))
+    # `merge` is a subcommand — without it argparse rejects the call (found live;
+    # the review lens assigned to check this CLI died on the subagent quota)
     proc = _run(f"{cfg['python']} {os.path.join(C.repo_root(), 'scripts', 'model_merger.py')} "
-                f"--backend fsdp --local_dir {os.path.join(ckpt, 'actor')} "
+                f"merge --backend fsdp --local_dir {os.path.join(ckpt, 'actor')} "
                 f"--target_dir {target}", log)
     if not os.path.isfile(os.path.join(target, "config.json")):
         raise StepFailed(f"FSDP->HF merge failed (rc={proc.returncode}); see {log}")
