@@ -64,14 +64,16 @@ WHAT THE SIGNALS MEAN (descriptions, not instructions):
   is recorded here; re-proposing it unchanged wastes a cycle.
 
 HOW YOUR EDITS ARE JUDGED. Text changes are A/B tested before they apply: the frozen
-current policy plays HELD-OUT games of the touched categories three ways (no text /
-current scaffold / your candidate). The candidate must score strictly above the
-current scaffold AND no lower than the no-text condition — text that loses to having
-no text at all never enters training, whatever else it beats. When the no-text
-condition outscores your CURRENT scaffold, the measured best edit is deletion (deletes
-are free and precise per scope; deleting everything that reaches a category makes your
-candidate equal the no-text condition). Rejected text is discarded; you see all three
-numbers next cycle. A p
+current policy plays HELD-OUT games three ways (no text / current scaffold / your
+candidate), over the UNION of the categories your proposal touches and the categories
+the current scaffold reaches. Outcomes: (1) your candidate applies iff it scores
+strictly above the current scaffold AND no lower than the no-text condition; (2) if
+no text strictly beats BOTH the current scaffold and your candidate, the harness
+CLEARS ALL ITEMS — the measurement says nothing is better than what exists, and your
+next cycle starts from an empty scaffold (p values survive but touch nothing until a
+new item wins an A/B); (3) otherwise the current scaffold stays. Deletes remain free
+and precise per scope for targeted pruning. Rejected or cleared text is recorded; you
+see all three numbers next cycle. A p
 change submitted together with text that then fails its A/B is discarded with the
 text, so a p change you want judged on its own should be submitted alone. p-only
 changes skip the A/B.

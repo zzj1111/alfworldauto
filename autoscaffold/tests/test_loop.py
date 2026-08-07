@@ -117,6 +117,52 @@ def test_target_step_stops_the_run():
     assert calls.count("train") == 2
 
 
+def test_revert_to_bare_clears_items_and_vetoes_p():
+    """When no-text strictly beats both sides over the union, the harness clears
+    every item, keeps p (inert without text), vetoes the co-submitted p, and
+    journals what was removed so the Teacher's memory shows the cleared wording."""
+    revert_measure = {"bare": {"pick_and_place": (0.5, 60)},
+                      "current": {"pick_and_place": (0.3, 60)},
+                      "candidate": {"pick_and_place": (0.4, 60)}}
+    st0 = L.new_state(0)
+    st0["scaffold"], _ = S.apply_item_ops(
+        st0["scaffold"], [{"op": "add", "scope": "pick_and_place", "kind": "skill",
+                           "text": "old text that turned harmful"}])
+    st0["scaffold"], _ = S.apply_p_ops(st0["scaffold"], [{"task": "pick_and_place", "p": 0.2}])
+    fns, _ = _fns(teacher=lambda o, sc: (
+        {"diagnosis": "d", "item_ops": [ADD], "p_ops": [{"task": "pick_and_place", "p": 0.4}]},
+        "ok"))
+    fns["measure_ab_fn"] = lambda ck, cur, cand, tasks: revert_measure
+    st = L.run_cycle(st0, fns, {})
+    e = st["decision_history"][-1]
+    assert e["verdict"] == "reverted_to_bare"
+    assert e["p_vetoed_with_text"] is True
+    assert e["cleared_items"] and "old text" in e["cleared_items"][0]["text"]
+    assert sum(len(v) for v in st["scaffold"]["items"].values()) == 0
+    assert st["scaffold"]["p_task"]["pick_and_place"] == 0.2, "p survives, inert"
+
+
+def test_ab_scope_is_the_union_of_touched_and_reached():
+    """A proposal touching one category while general text exists must measure ALL
+    categories — that union is what makes a revert measurement-honest."""
+    seen = {}
+    st0 = L.new_state(0)
+    st0["scaffold"], _ = S.apply_item_ops(
+        st0["scaffold"], [{"op": "add", "scope": "general", "kind": "skill",
+                           "text": "general text reaching every category"}])
+    fns, _ = _fns(teacher=lambda o, sc: (
+        {"diagnosis": "d", "item_ops": [ADD], "p_ops": []}, "ok"), ab_accept=True)
+    real_measure = {"bare": {c: (0.1, 30) for c in S.CATEGORIES},
+                    "current": {c: (0.2, 30) for c in S.CATEGORIES},
+                    "candidate": {c: (0.5, 30) for c in S.CATEGORIES}}
+    def measure(ck, cur, cand, tasks):
+        seen["tasks"] = tasks
+        return real_measure
+    fns["measure_ab_fn"] = measure
+    L.run_cycle(st0, fns, {})
+    assert set(seen["tasks"]) == set(S.CATEGORIES), seen["tasks"]
+
+
 def test_late_validation_failure_is_a_noop_not_a_crash():
     # teacher_fn bypassing normalize (a replayed journal, a harness bug) must not
     # take the cycle down

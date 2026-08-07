@@ -55,28 +55,24 @@ def test_accept_rule_is_strict_greater():
     assert G.ab_gate(_m(0.1, 0.25, 0.24), ["t"])["accept"] is False
 
 
-def test_bare_is_a_floor_for_acceptance():
-    """Text that loses to NO TEXT has no benefit path — injecting it makes injected
-    groups worse. It had been accepted twice under the old candidate-vs-current-only
-    rule (0.111 over 0.100 with bare 0.122; 0.883 over 0.867 with bare 0.917)."""
-    r = G.ab_gate(_m(0.122, 0.100, 0.111), ["t"])   # beats current, loses to bare
-    assert not r["accept"] and r["blocked_by_bare_floor"]
-    assert "bare floor" in r["reason"]
-    r2 = G.ab_gate(_m(0.100, 0.100, 0.150), ["t"])  # beats both
-    assert r2["accept"] and not r2["blocked_by_bare_floor"]
-    r3 = G.ab_gate(_m(0.150, 0.100, 0.150), ["t"])  # ties bare exactly -> allowed
-    assert r3["accept"]
-
-
-def test_bare_beating_current_is_reported_as_a_deletion_signal():
-    """The harness never auto-clears (the A/B samples only the touched categories, so
-    clearing unmeasured scopes would exceed the measurement); the Teacher gets the
-    fact and owns the delete."""
-    r = G.ab_gate(_m(0.9, 0.8, 0.7), ["t"])         # plain reject; bare on top
-    assert not r["accept"] and not r["blocked_by_bare_floor"]
-    assert r["bare_beats_current"] and "deletion" in r["reason"]
-    r2 = G.ab_gate(_m(0.1, 0.2, 0.3), ["t"])        # healthy accept
-    assert r2["accept"] and not r2["bare_beats_current"]
+def test_three_way_rule_accept_revert_reject():
+    """The tournament over the measured union (2026-08-07, second revision):
+    accept iff cand > cur and cand >= bare; revert to bare iff bare strictly beats
+    BOTH; else keep. The two historical bad accepts (0.111 over 0.100 with bare
+    0.122; 0.883 over 0.867 with bare 0.917) both land in the revert branch now."""
+    r = G.ab_gate(_m(0.122, 0.100, 0.111), ["t"])   # bare beats both -> revert
+    assert not r["accept"] and r["revert_to_bare"]
+    assert "REVERT-TO-BARE" in r["reason"]
+    r2 = G.ab_gate(_m(0.917, 0.867, 0.883), ["t"])  # the other historical case
+    assert r2["revert_to_bare"]
+    r3 = G.ab_gate(_m(0.100, 0.100, 0.150), ["t"])  # candidate beats both -> accept
+    assert r3["accept"] and not r3["revert_to_bare"]
+    r4 = G.ab_gate(_m(0.150, 0.100, 0.150), ["t"])  # ties bare, beats cur -> accept
+    assert r4["accept"]
+    r5 = G.ab_gate(_m(0.5, 0.55, 0.45), ["t"])      # current best -> plain reject
+    assert not r5["accept"] and not r5["revert_to_bare"]
+    r6 = G.ab_gate(_m(0.9, 0.8, 0.7), ["t"])        # bare beats both -> revert
+    assert r6["revert_to_bare"] and r6["bare_beats_current"]
 
 
 def test_missing_samples_reject_rather_than_invent():
@@ -108,3 +104,4 @@ def test_verdict_survives_json_with_numpy_inputs():
     r = G.ab_gate(m, ["t"])
     dumped = json.dumps(r)
     assert json.loads(dumped)["accept"] is True
+    assert json.loads(dumped)["revert_to_bare"] is False

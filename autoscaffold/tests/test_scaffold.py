@@ -158,3 +158,19 @@ def test_touched_categories_resolves_the_real_scope_over_a_spurious_one():
     an_id = S.items_of(sc, "general")[0]["id"]
     op = {"op": "update", "id": an_id, "text": "x", "scope": "pick_and_place"}
     assert S.touched_categories([op], sc) == list(S.CATEGORIES)
+
+
+def test_reached_categories_and_clear_items():
+    sc = S.empty_scaffold()
+    assert S.reached_categories(sc) == []
+    sc1, _ = S.apply_item_ops(sc, [{"op": "add", "scope": "pick_and_place",
+                                    "kind": "skill", "text": "x"}])
+    assert S.reached_categories(sc1) == ["pick_and_place"]
+    sc2, _ = S.apply_item_ops(sc1, [{"op": "add", "scope": "general",
+                                     "kind": "skill", "text": "y"}])
+    assert S.reached_categories(sc2) == list(S.CATEGORIES), "general reaches all"
+    cleared_sc, cleared = S.clear_items(sc2)
+    assert sum(len(v) for v in cleared_sc["items"].values()) == 0
+    assert {c["text"] for c in cleared} == {"x", "y"}
+    assert {c["scope"] for c in cleared} == {"pick_and_place", "general"}
+    assert sum(len(v) for v in sc2["items"].values()) == 2, "input not mutated"

@@ -207,6 +207,31 @@ def injects_nothing(scaffold):
     return not (has_text and has_p)
 
 
+def reached_categories(scaffold):
+    """Categories the CURRENT scaffold's text can reach: all of them when general
+    items exist, plus每 category with items of its own. The A/B measures over the
+    union of this and the proposal's touched set, so a revert-to-bare only ever
+    clears text the measurement actually covered."""
+    reached = set()
+    if items_of(scaffold, "general"):
+        return list(CATEGORIES)
+    for cat in CATEGORIES:
+        if items_of(scaffold, cat):
+            reached.add(cat)
+    return sorted(reached)
+
+
+def clear_items(scaffold):
+    """(new_scaffold, cleared): every item removed, p_task kept (inert without text;
+    any future item must pass the A/B before that p applies to anything)."""
+    import copy as _copy
+    nxt = _copy.deepcopy(scaffold)
+    cleared = [dict(it, scope=scope) for scope in SCOPES for it in items_of(nxt, scope)]
+    nxt["items"] = {s: [] for s in SCOPES}
+    nxt["version"] = int(nxt.get("version", 0)) + 1
+    return nxt, cleared
+
+
 def touched_categories(item_ops, scaffold):
     """Categories whose prompts an action can change; 'general' touches all of them."""
     touched = set()

@@ -79,8 +79,8 @@ def cycle_snapshot(state, cfg):
     hist = state.get("decision_history") or []
     if hist:
         last = hist[-1]
-        out["teacher/verdict"] = {"accepted": 2, "rejected": 1, "p_only": 3}.get(
-            last.get("verdict"), 0)
+        out["teacher/verdict"] = {"accepted": 2, "rejected": 1, "p_only": 3,
+                                  "reverted_to_bare": 4}.get(last.get("verdict"), 0)
         ab = last.get("ab") or {}
         for src, dst in (("cand_mean", "candidate"), ("cur_mean", "current"),
                          ("bare_mean", "bare"), ("n", "n")):
@@ -88,7 +88,7 @@ def cycle_snapshot(state, cfg):
                 out[f"ab/{dst}"] = ab[src]
         if ab:
             out["ab/accept"] = int(bool(ab.get("accept")))
-            out["ab/bare_floor_blocked"] = int(bool(ab.get("blocked_by_bare_floor")))
+            out["ab/revert_to_bare"] = int(bool(ab.get("revert_to_bare")))
             out["ab/bare_beats_current"] = int(bool(ab.get("bare_beats_current")))
         out["teacher/accepted_total"] = sum(1 for e in hist if e.get("verdict") == "accepted")
         out["teacher/cycles_recorded"] = len(hist)
@@ -147,9 +147,10 @@ def warnings_for(s, now=None):
         out.append(f"scaffold still EMPTY at cycle {g('progress/cycle')} — nothing accepted yet")
     if g("scaffold/items", 0) and not (g("scaffold/p_max") or 0):
         out.append("scaffold holds text but p=0 everywhere — it reaches no rollout")
-    if g("ab/bare_beats_current", 0):
+    if g("ab/bare_beats_current", 0) and g("teacher/verdict") != 4:
         out.append("the no-text condition outscored the CURRENT scaffold in the last "
-                   "A/B — existing text may be hurting; deletion is the measured edit")
+                   "A/B (candidate still won or data was short of a revert) — watch "
+                   "per_task_gap for this text")
     if (g("mem/frac") or 0) > 0.85:
         out.append(f"container memory at {g('mem/frac', 0):.0%} of its limit "
                    f"({g('mem/used_gb')}G / {g('mem/limit_gb')}G) — an OOM kill at a "

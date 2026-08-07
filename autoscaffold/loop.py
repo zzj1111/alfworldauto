@@ -164,12 +164,28 @@ def run_cycle(state, fns, cfg):
             state["decision_history"].append(entry)
             log(f"[c{cyc}] item_ops failed validation late: {e}")
             return _journal(state, fns)
-        tasks = S.touched_categories(action["item_ops"], state["scaffold"])
+        # UNION scope: the proposal's touched categories plus every category the
+        # CURRENT text reaches — so all text-bearing categories are measured, and a
+        # revert-to-bare only clears what the measurement covered.
+        tasks = sorted(set(S.touched_categories(action["item_ops"], state["scaffold"]))
+                       | set(S.reached_categories(state["scaffold"])))
         measure = fns["measure_ab_fn"](ckpt, state["scaffold"], candidate, tasks)
         verdict = gate.ab_gate(measure, tasks)
         entry["ab"] = verdict
         log(f"[c{cyc}] A/B: {verdict['reason']}")
-        if verdict["accept"]:
+        if verdict.get("revert_to_bare"):
+            # no text strictly beat both sides over the union: the measured best
+            # scaffold is nothing. Clear every item; p stays (inert without text and
+            # any future item must win an A/B before that p touches a rollout). The
+            # proposal's p_ops die with its text.
+            state["scaffold"], cleared = S.clear_items(state["scaffold"])
+            entry["verdict"] = "reverted_to_bare"
+            entry["p_applied"] = False
+            entry["p_vetoed_with_text"] = bool(action.get("p_ops"))
+            entry["cleared_items"] = cleared
+            _call(fns, "persist_fn", state["scaffold"])
+            log(f"[c{cyc}] scaffold cleared: {len(cleared)} item(s) removed by measurement")
+        elif verdict["accept"]:
             with_p, p_notes = S.apply_p_ops(candidate, action.get("p_ops"))
             state["scaffold"] = with_p
             entry["verdict"] = "accepted"
