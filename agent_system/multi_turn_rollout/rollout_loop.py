@@ -67,6 +67,10 @@ class TrajectoryCollector:
         obs_texts = obs.get('text', None)
         obs_images = obs.get('image', None)
         obs_anchors = obs.get('anchor', None)
+        # autoscaffold: unspliced prompt copy; vanilla managers return no such key and
+        # the field falls back to the anchor below (nothing reads it unless
+        # algorithm.bare_prompt_loss.enable is on)
+        obs_text_bares = obs.get('text_bare', None)
         obs_text = obs_texts[item] if obs_texts is not None else None
         obs_image = obs_images[item] if obs_images is not None else None
         obs_anchor = obs_anchors[item] if obs_anchors is not None else None
@@ -178,6 +182,7 @@ class TrajectoryCollector:
             'position_ids': position_ids[0],
             'raw_prompt_ids': raw_prompt_ids,
             'anchor_obs': _obs_anchor,
+            'text_bare': obs_text_bares[item] if obs_text_bares is not None else _obs_anchor,
             'index': item,
             'data_source': data_source
         })

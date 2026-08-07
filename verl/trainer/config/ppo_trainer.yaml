@@ -255,6 +255,9 @@ algorithm:
   filter_groups: # DAPO from https://arxiv.org/abs/2503.14476
     enable: False
     max_num_gen_batches: 10
+  bare_prompt_loss: # autoscaffold: condition the LOSS on the unscaffolded prompt (rollout unchanged)
+    enable: False
+    mode: both # "both": swap before old_log_prob, so pi_theta and pi_old share the bare prompt
 
 trainer:
   balance_batch: True

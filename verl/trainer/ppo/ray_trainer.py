@@ -223,6 +223,58 @@ def apply_invalid_action_penalty(data: DataProto, invalid_action_penalty_coef=fl
     metrics = {'episode/valid_action_ratio': valid_action_ratio}
     return data, metrics
 
+def swap_to_bare_prompt(batch, tokenizer, config):
+    """autoscaffold (algorithm.bare_prompt_loss): rebuild the prompt-side tensors from
+    the unscaffolded prompt text, so every log-prob computed downstream (old_log_prob,
+    ref_log_prob, the actor update) conditions on the prompt the policy is EVALUATED
+    under. The rollout itself already happened on the scaffolded prompt; only the
+    loss's conditioning changes.
+
+    Width is pinned to the existing prompts tensor, so consumers that index by
+    prompt_length (apply_invalid_action_penalty) stay correct. Text-only; refuses
+    multimodal batches. Returns (batch, n_prompts_that_actually_changed) — 0 is the
+    expected value while the scaffold is empty or p never fired.
+    """
+    import verl.utils.torch_functional as verl_F
+    from verl.utils.model import compute_position_id_with_mask
+
+    if "multi_modal_inputs" in batch.non_tensor_batch:
+        raise NotImplementedError("bare_prompt_loss supports text-only batches")
+    texts = batch.non_tensor_batch.get("text_bare")
+    if texts is None:
+        raise ValueError("algorithm.bare_prompt_loss.enable=True but the batch carries "
+                         "no 'text_bare' (is AUTOSCAFFOLD_ALFWORLD set so the scaffold "
+                         "env manager runs?)")
+    apply_kwargs = config.data.get("apply_chat_template_kwargs", {}) or {}
+    prompt_width = batch.batch["prompts"].shape[-1]
+    device = batch.batch["input_ids"].device
+    new_ids, new_mask = [], []
+    for i in range(len(batch.batch)):
+        chat = [{"role": "user", "content": str(texts[i])}]
+        templated = tokenizer.apply_chat_template(
+            chat, add_generation_prompt=True, tokenize=False, **apply_kwargs)
+        ids, mask = verl_F.tokenize_and_postprocess_data(
+            prompt=templated, tokenizer=tokenizer, max_length=prompt_width,
+            pad_token_id=tokenizer.pad_token_id, left_pad=True,
+            truncation=config.data.truncation)
+        new_ids.append(ids[0])
+        new_mask.append(mask[0])
+    prompt_ids = torch.stack(new_ids).to(device)
+    prompt_mask = torch.stack(new_mask).to(device).to(batch.batch["attention_mask"].dtype)
+    n_changed = int((prompt_ids != batch.batch["prompts"]).any(dim=-1).sum().item())
+    responses = batch.batch["responses"]
+    resp_mask = batch.batch["attention_mask"][:, prompt_width:]
+    prompt_pos = compute_position_id_with_mask(prompt_mask)
+    delta = torch.arange(1, responses.size(1) + 1,
+                         device=device).unsqueeze(0).expand(len(batch.batch), -1)
+    resp_pos = prompt_pos[..., -1:] + delta
+    batch.batch["prompts"] = prompt_ids
+    batch.batch["input_ids"] = torch.cat([prompt_ids, responses], dim=-1)
+    batch.batch["attention_mask"] = torch.cat([prompt_mask, resp_mask], dim=-1)
+    batch.batch["position_ids"] = torch.cat([prompt_pos, resp_pos], dim=-1)
+    return batch, n_changed
+
+
 def compute_response_mask(data: DataProto):
     """Compute the attention mask for the response part of the sequence.
 
@@ -1116,6 +1168,13 @@ class RayPPOTrainer:
                         batch.batch['step_rewards'] = step_rewards_tensor
                     
                     batch = adjust_batch(self.config, batch)
+
+                    # ---- autoscaffold hook (inert unless algorithm.bare_prompt_loss.enable) ----
+                    _bpl = self.config.algorithm.get("bare_prompt_loss", None)
+                    if _bpl is not None and _bpl.get("enable", False):
+                        batch, _n_swapped = swap_to_bare_prompt(batch, self.tokenizer, self.config)
+                        metrics["bare_prompt_loss/n_changed"] = _n_swapped
+                    # ---- end autoscaffold hook ----
 
                     batch.batch["response_mask"] = compute_response_mask(batch)
                     # balance the number of valid tokens on each dp rank.

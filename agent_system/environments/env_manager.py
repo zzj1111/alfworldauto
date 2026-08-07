@@ -643,7 +643,15 @@ def make_envs(config):
         _val_envs = build_alfworld_envs(alf_config_path, config.env.seed + 1000, config.data.val_batch_size, 1, is_train=False, env_kwargs=env_kwargs, resources_per_worker=resources_per_worker)
         
         projection_f = partial(alfworld_projection)
-        envs = AlfWorldEnvironmentManager(_envs, projection_f, config)
+        # ---- autoscaffold hook (inert unless AUTOSCAFFOLD_ALFWORLD is set) ----
+        # The TRAIN manager may be swapped for the scaffold-injecting subclass; the VAL
+        # manager stays this vanilla class unconditionally, so the evaluation path is
+        # physically unable to inject text. See autoscaffold/DESIGN.md.
+        manager_cls = AlfWorldEnvironmentManager
+        if os.environ.get("AUTOSCAFFOLD_ALFWORLD"):
+            from autoscaffold.scaffold_env_manager import ScaffoldAlfWorldEnvironmentManager as manager_cls
+        envs = manager_cls(_envs, projection_f, config)
+        # ---- end autoscaffold hook ----
         val_envs = AlfWorldEnvironmentManager(_val_envs, projection_f, config)
         return envs, val_envs
     elif "sokoban" in config.env.env_name.lower():
