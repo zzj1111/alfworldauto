@@ -45,8 +45,9 @@ tail -f <exp_root>/<exp>/run_latest.log
 
 - The env spec above is Blackwell-ready (cu128, vllm 0.11). Do not pin
   TORCH_CUDA_ARCH_LIST to 9.0 — B200 is sm_100.
-- Do not export VLLM_ATTENTION_BACKEND=XFORMERS (the upstream example's H100-era
-  choice); leave the backend to vllm 0.11's default on Blackwell.
+- Attention backend: env.sh defaults VLLM_ATTENTION_BACKEND=FLASH_ATTN (prebuilt,
+  proven on H200; vllm 0.11's default JIT-compiles FlashInfer at init and needs
+  ninja). On B200 set ARM_VLLM_ATTN=auto to let vllm choose.
 - The container memory check reads the cgroup limit; /proc/meminfo inside a container
   reports the host and is not trusted.
 - `+data.dataloader_num_workers=0` is already in the training script: the dataset is
