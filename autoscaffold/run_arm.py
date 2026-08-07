@@ -48,6 +48,9 @@ def default_cfg():
         "vllm_port": int(os.environ.get("ARM_VLLM_PORT", "8110")),
         "vllm_health_timeout": int(os.environ.get("ARM_VLLM_HEALTH_TIMEOUT", "2400")),
         "base_seed": 20260722,
+        # touch this file to get a clean exit at the next cycle boundary (the chain
+        # then relaunches with fresh code) — never pattern-kill the orchestrator
+        "restart_flag": os.path.join(state_dir, "restart.requested"),
     }
 
 

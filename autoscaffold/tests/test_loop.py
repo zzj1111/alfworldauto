@@ -172,3 +172,17 @@ def test_late_validation_failure_is_a_noop_not_a_crash():
     st = L.run_cycle(L.new_state(0), fns, {})
     e = st["decision_history"][-1]
     assert e["verdict"] == "noop" and "invalid" in e["summary"]
+
+
+def test_restart_flag_exits_cleanly_at_the_cycle_boundary(tmp_path):
+    """Rolling restarts by sentinel file, not by kill: a pattern-matched kill once
+    took down the relaunch chain together with the orchestrator (the chain's own
+    command line legitimately contains the module name)."""
+    import os
+    flag = str(tmp_path / "restart.requested")
+    open(flag, "w").close()
+    fns, calls = _fns()
+    st = L.run(L.new_state(0), fns, {"steps_per_cycle": 10, "target_step": 100,
+                                     "restart_flag": flag}, n_cycles=5)
+    assert calls.count("train") == 0, "the flag must stop BEFORE the next cycle trains"
+    assert not os.path.exists(flag), "consumed, so the relaunched process runs on"

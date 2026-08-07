@@ -17,6 +17,7 @@ Injected functions (fns dict):
 from __future__ import annotations
 
 import copy
+import os
 
 from . import gate
 from . import prompts
@@ -283,10 +284,25 @@ def run_cycle(state, fns, cfg):
 
 def run(state, fns, cfg, n_cycles):
     """Up to n_cycles, or until cfg['target_step'] is reached. target_step is the
-    absolute finish line and survives restarts; n_cycles only caps this process."""
+    absolute finish line and survives restarts; n_cycles only caps this process.
+
+    cfg['restart_flag'] names a sentinel file: when it exists at a cycle boundary the
+    loop deletes it and returns, and the relaunch chain starts a fresh process with
+    whatever code is on disk. Rolling restarts by touching a file — pattern-matched
+    kills took down the supervisor along with the orchestrator once (the chain's own
+    command line legitimately contains the module name)."""
     target = int(cfg.get("target_step", 0) or 0)
+    flag = cfg.get("restart_flag")
     for _ in range(n_cycles):
         if target and state.get("step", 0) >= target:
+            break
+        if flag and os.path.exists(flag):
+            try:
+                os.unlink(flag)
+            except OSError:
+                pass
+            fns.get("log", lambda *a: None)(
+                "[loop] restart requested; exiting cleanly at the cycle boundary")
             break
         state = run_cycle(state, fns, cfg)
     return state
