@@ -132,3 +132,6 @@ data/
 .tmp
 *ports
 
+
+.autoscaffold.env
+runs/
