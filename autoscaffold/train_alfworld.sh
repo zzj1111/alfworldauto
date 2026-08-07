@@ -43,10 +43,12 @@ if [[ "$MODE" == "scaffold" ]]; then
     "algorithm.bare_prompt_loss.mode=both"
     # make_envs runs inside a Ray actor; runtime_env carries the flags even when a
     # pre-existing cluster would not inherit shell exports
-    "+ray_init.runtime_env.env_vars.AUTOSCAFFOLD_ALFWORLD=1"
-    "+ray_init.runtime_env.env_vars.AUTOSCAFFOLD_SCAFFOLD=$AUTOSCAFFOLD_SCAFFOLD"
-    "+ray_init.runtime_env.env_vars.AUTOSCAFFOLD_ROLLOUT_LOG=$AUTOSCAFFOLD_ROLLOUT_LOG"
-    "+ray_init.runtime_env.env_vars.AUTOSCAFFOLD_SEED=$AUTOSCAFFOLD_SEED"
+    # hydra parses unquoted numerics as ints and Ray requires env_vars values to be
+    # STRINGS — '1' failed runtime_env validation on the first scaffold smoke
+    "+ray_init.runtime_env.env_vars.AUTOSCAFFOLD_ALFWORLD='1'"
+    "+ray_init.runtime_env.env_vars.AUTOSCAFFOLD_SCAFFOLD='$AUTOSCAFFOLD_SCAFFOLD'"
+    "+ray_init.runtime_env.env_vars.AUTOSCAFFOLD_ROLLOUT_LOG='$AUTOSCAFFOLD_ROLLOUT_LOG'"
+    "+ray_init.runtime_env.env_vars.AUTOSCAFFOLD_SEED='$AUTOSCAFFOLD_SEED'"
   )
 fi
 
