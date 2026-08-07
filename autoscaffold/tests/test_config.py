@@ -66,3 +66,28 @@ def test_container_memory_returns_numbers_or_none():
     used, limit = C.container_memory()
     if used is not None:
         assert used >= 0 and limit > 0
+
+
+def test_python_entry_points_carry_the_vllm_toolchain_guards():
+    """env.sh and config.py must produce the same serve environment. The A/B serves
+    vLLM from the orchestrator process; without these it died JIT-compiling on a
+    missing ninja binary — twice, once per resolver, which is why the guard now lives
+    in both with the same caller-wins precedence."""
+    import subprocess
+    import sys
+    code = ("import os, json; os.environ.pop('VLLM_ATTENTION_BACKEND', None); "
+            "import autoscaffold.config as C; "
+            "print(json.dumps({'attn': os.environ.get('VLLM_ATTENTION_BACKEND'), "
+            "'smp': os.environ.get('VLLM_USE_FLASHINFER_SAMPLER'), "
+            "'path_has_bin': os.path.dirname(os.path.abspath(__import__('sys').executable)) "
+            "in os.environ.get('PATH','').split(':')}))")
+    import json
+    env = {k: v for k, v in __import__("os").environ.items()
+           if k not in ("VLLM_ATTENTION_BACKEND", "VLLM_USE_FLASHINFER_SAMPLER",
+                        "ARM_VLLM_ATTN")}
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                         env=env, timeout=60)
+    got = json.loads(out.stdout.strip().splitlines()[-1])
+    assert got["attn"] == "FLASH_ATTN"
+    assert got["smp"] == "0"
+    assert got["path_has_bin"] is True

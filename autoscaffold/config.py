@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
+import sys
 import time
 
 ENV_FILE_VAR = "ARM_ENV_FILE"
@@ -66,6 +68,38 @@ def load_site_file(path=None):
 
 
 load_site_file()
+
+
+def _runtime_guards():
+    """The vLLM toolchain guards, mirrored from env.sh for python-only entry points.
+
+    The A/B harness serves vLLM from the orchestrator process; launched without the
+    shell resolver it had none of these, and the engine died JIT-compiling FlashInfer
+    (FileNotFoundError: ninja — the binary lives in the interpreter's bin/, which the
+    inherited PATH did not contain). Same precedence as everything else: an existing
+    environment value wins.
+    """
+    bindir = os.path.dirname(os.path.abspath(sys.executable))
+    parts = os.environ.get("PATH", "").split(":")
+    if bindir not in parts:
+        os.environ["PATH"] = f"{bindir}:{os.environ.get('PATH', '')}"
+    attn = os.environ.get("ARM_VLLM_ATTN", "FLASH_ATTN")
+    if attn != "auto":
+        os.environ.setdefault("VLLM_ATTENTION_BACKEND", attn)
+    os.environ.setdefault("VLLM_USE_FLASHINFER_SAMPLER", "0")
+    if not os.environ.get("TORCH_CUDA_ARCH_LIST"):
+        try:
+            r = subprocess.run(["nvidia-smi", "--query-gpu=compute_cap",
+                                "--format=csv,noheader"],
+                               capture_output=True, text=True, timeout=5)
+            caps = ";".join(sorted(set(r.stdout.split())))
+            if caps:
+                os.environ["TORCH_CUDA_ARCH_LIST"] = caps
+        except Exception:
+            pass
+
+
+_runtime_guards()
 
 
 def _get(name, default):
