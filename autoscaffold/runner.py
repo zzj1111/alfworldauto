@@ -108,8 +108,12 @@ def train_adapter(state_scaffold_path, to_step, cfg):
         cfg["_rollout_rows"] = []
         return ckpt
     env = os.environ.copy()
+    # ARM_PYTHON travels explicitly: the orchestrator knows its interpreter, and the
+    # train script falling back to `command -v python3` silently runs another
+    # environment (observed: the system python with a broken user-site pandas).
     env.update(SAVE_FREQ=str(cfg["steps_per_cycle"]), TEST_FREQ="99999",
-               VAL_BEFORE="False", AUTOSCAFFOLD_ROLLOUT_LOG=rl_path)
+               VAL_BEFORE="False", AUTOSCAFFOLD_ROLLOUT_LOG=rl_path,
+               ARM_PYTHON=cfg["python"])
     proc = _run(f"bash {TRAIN_SH} scaffold {to_step}", cfg["train_log"], env)
     if not ckpt_is_usable(ckpt):
         raise StepFailed(f"training to step {to_step} left no usable checkpoint at {ckpt} "
@@ -152,7 +156,7 @@ def eval_adapter(ckpt, cfg):
         # checkpointed steps 3 and 5, and three draws would each build on the last
         # draw's stray update — not even measuring the same weights.
         env.update(VAL_BEFORE="True", VAL_ONLY="True", TEST_FREQ="99999",
-                   SAVE_FREQ="99999", ARM_WANDB="0")
+                   SAVE_FREQ="99999", ARM_WANDB="0", ARM_PYTHON=cfg["python"])
         proc = _run(f"bash {TRAIN_SH} none {step_of(ckpt)}", log, env)
         overall, per_task, found = parse_val(log)
         if not found:
