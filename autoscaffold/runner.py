@@ -155,8 +155,14 @@ def eval_adapter(ckpt, cfg):
         # (is_last_step forces the save): the testrun's evals silently trained and
         # checkpointed steps 3 and 5, and three draws would each build on the last
         # draw's stray update — not even measuring the same weights.
+        # A different env seed per draw. vLLM v1 defaults its engine seed to 0, so
+        # identical launches reproduce generations token for token — cycle 1's three
+        # "independent" draws came back 0.180/0.180/0.180. Varying the env seed makes
+        # each draw a different 128-game sample of the held-out split, so the spread
+        # measures what it claims to (game-sampling variance, the dominant term).
         env.update(VAL_BEFORE="True", VAL_ONLY="True", TEST_FREQ="99999",
-                   SAVE_FREQ="99999", ARM_WANDB="0", ARM_PYTHON=cfg["python"])
+                   SAVE_FREQ="99999", ARM_WANDB="0", ARM_PYTHON=cfg["python"],
+                   ENV_SEED=str(d))
         proc = _run(f"bash {TRAIN_SH} none {step_of(ckpt)}", log, env)
         overall, per_task, found = parse_val(log)
         if not found:

@@ -58,7 +58,8 @@ WHAT THE SIGNALS MEAN (descriptions, not instructions):
   looped_observation: the same observation >=3 times in a row; invalid_heavy: >=20%
   of actions unparseable). These cover every failure, not just the traces shown.
 - valid_seen: the held-out standalone eval — the number this run exists to move.
-  draws are independent eval passes; their spread is the noise floor of one reading.
+  Each draw plays a DIFFERENT sample of held-out games; the spread across draws is
+  the sampling noise floor of one reading.
 - decision_history: your own past proposals with their exact wording, the A/B verdict
   each received, and the held-out number before/after. Text that already lost an A/B
   is recorded here; re-proposing it unchanged wastes a cycle.
