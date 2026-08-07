@@ -79,7 +79,17 @@ class _WandbPublisher:
                              reinit=True,
                              settings=wandb.Settings(init_timeout=60,
                                                      _disable_stats=True))
-            run.log(data, step=step)
+            payload = dict(data)
+            payload.setdefault("progress/step", int(step))
+            # never pass wandb's native step: the trainer owns that counter and is
+            # ahead of us by cycle end, and wandb silently DROPS points logged
+            # behind it. Exact-name define_metric binds our keys to our own x-axis
+            # without touching the trainer's metrics.
+            run.define_metric("progress/step")
+            for k in payload:
+                if k != "progress/step":
+                    run.define_metric(k, step_metric="progress/step")
+            run.log(payload)
             run.finish()
         except Exception as e:
             self.cfg.get("log", lambda *a: None)(
