@@ -129,6 +129,7 @@ unset RAY_ADDRESS   # never silently attach to a stale cluster
     trainer.save_freq="${SAVE_FREQ:-10}" \
     trainer.test_freq="${TEST_FREQ:-99999}" \
     trainer.val_before_train="${VAL_BEFORE:-False}" \
+    trainer.val_only="${VAL_ONLY:-False}" \
     trainer.total_epochs=99999 \
     trainer.total_training_steps="$TOTAL_STEPS" \
     trainer.default_local_dir="$ARM_CKPT_ROOT/$EXP" \

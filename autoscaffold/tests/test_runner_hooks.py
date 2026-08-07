@@ -157,3 +157,18 @@ def test_no_machine_specific_path_in_the_package():
                 if bad.search(line):
                     offenders.append(f"{name}:{ln}: {line.strip()[:80]}")
     assert not offenders, "\n".join(offenders)
+
+
+def test_eval_is_val_only_and_guards_the_tracker():
+    """verl's fit() resumed at total_training_steps still trains one batch past the
+    target AND saves it (is_last_step forces the save when save_freq>0). The testrun's
+    two evals silently created checkpoints 3 and 5 this way, and three production
+    draws would each build on the previous draw's stray update. VAL_ONLY short-circuits
+    fit() right after validation; the tracker sentinel turns any regression of this
+    into a loud StepFailed instead of corrupted step accounting."""
+    sh = _text("autoscaffold/train_alfworld.sh")
+    assert 'trainer.val_only="${VAL_ONLY:-False}"' in sh
+    src = _text("autoscaffold/runner.py")
+    body = src[src.index("def eval_adapter"):src.index("def signals_adapter")]
+    assert 'VAL_ONLY="True"' in body, "the eval invocation must be val-only"
+    assert "eval must never train or save" in body, "the tracker sentinel is the backstop"

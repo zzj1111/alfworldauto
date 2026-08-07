@@ -134,11 +134,25 @@ def eval_adapter(ckpt, cfg):
     construction: the val manager is the vanilla class). Each draw resumes the latest
     checkpoint, trains zero steps, and runs val_before_train."""
     draws, per_task_acc = [], {}
+    tracker = os.path.join(os.path.dirname(ckpt), "latest_checkpointed_iteration.txt")
+
+    def _tracker():
+        try:
+            return open(tracker).read().strip()
+        except OSError:
+            return ""
+
+    before = _tracker()
     for d in range(cfg["val_n"]):
         log = C.stamped(os.path.join(cfg["state_dir"], f"eval_s{step_of(ckpt)}_d{d}.log"))
         env = os.environ.copy()
-        env.update(VAL_BEFORE="True", TEST_FREQ="99999", SAVE_FREQ="99999",
-                   ARM_WANDB="0")          # eval subprocesses stay out of the wandb run
+        # VAL_ONLY is what makes this an EVAL. Without it, verl's fit() resumed at
+        # total_training_steps still advances one batch past the target AND saves it
+        # (is_last_step forces the save): the testrun's evals silently trained and
+        # checkpointed steps 3 and 5, and three draws would each build on the last
+        # draw's stray update — not even measuring the same weights.
+        env.update(VAL_BEFORE="True", VAL_ONLY="True", TEST_FREQ="99999",
+                   SAVE_FREQ="99999", ARM_WANDB="0")
         proc = _run(f"bash {TRAIN_SH} none {step_of(ckpt)}", log, env)
         overall, per_task, found = parse_val(log)
         if not found:
@@ -147,6 +161,12 @@ def eval_adapter(ckpt, cfg):
         draws.append(overall)
         for k, v in per_task.items():
             per_task_acc.setdefault(k, []).append(v)
+    after = _tracker()
+    if after != before:
+        # a moved tracker means an eval WROTE a checkpoint — the exact defect
+        # VAL_ONLY exists to prevent; refuse to continue on corrupted accounting
+        raise StepFailed(f"eval moved the checkpoint tracker {before!r} -> {after!r}; "
+                         f"an eval must never train or save")
     if not draws:
         return {"avg": None, "per_task": {}, "draws": []}
     return {"avg": round(sum(draws) / len(draws), 4),
