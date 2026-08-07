@@ -71,9 +71,12 @@ strictly above the current scaffold AND no lower than the no-text condition; (2)
 no text strictly beats BOTH the current scaffold and your candidate, the harness
 CLEARS ALL ITEMS — the measurement says nothing is better than what exists, and your
 next cycle starts from an empty scaffold (p values survive but touch nothing until a
-new item wins an A/B); (3) otherwise the current scaffold stays. Deletes remain free
-and precise per scope for targeted pruning. Rejected or cleared text is recorded; you
-see all three numbers next cycle. A p
+new item wins an A/B); (3) otherwise the current scaffold stays. The verdict you see in
+decision_history carries a per_category breakdown of all three conditions: when the
+aggregate verdict hides a mixed pattern (your candidate best in one category, no-text
+best in another), the precise follow-up is a free targeted delete in the categories
+where no-text won, next cycle. Rejected or cleared text is recorded; you see all
+numbers next cycle. A p
 change submitted together with text that then fails its A/B is discarded with the
 text, so a p change you want judged on its own should be submitted alone. p-only
 changes skip the A/B.

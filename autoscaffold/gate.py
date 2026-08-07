@@ -54,6 +54,25 @@ def ab_gate(measure, tasks):
     accept = bool(beats_current and cand_mean >= bare_mean)
     revert_to_bare = bool(not accept and bare_mean > cur_mean and bare_mean > cand_mean)
     bare_beats_current = bool(bare_mean > cur_mean)
+    # Per-category breakdown INTO THE RECORD. The decision stays aggregate (per-
+    # category n is ~30 at full breadth and three-way verdicts flip on 2-3 games at
+    # that n), but a mixed pattern — candidate best in one category, bare best in
+    # another — must be visible to the Teacher, or it cannot target the losing
+    # category with a free precise delete next cycle.
+    per_category = {}
+    for t in tasks:
+        b = measure.get("bare", {}).get(t)
+        c = measure.get("current", {}).get(t)
+        k = measure.get("candidate", {}).get(t)
+        if not (b and c and k):
+            continue
+        best = max(("bare", b[0]), ("current", c[0]), ("candidate", k[0]),
+                   key=lambda x: x[1])[0]
+        per_category[t] = {"bare": round(float(b[0]), 3),
+                           "current": round(float(c[0]), 3),
+                           "candidate": round(float(k[0]), 3),
+                           "n": int(b[1]), "best": best}
+    mixed = len({v["best"] for v in per_category.values()}) > 1
     action = "ACCEPT" if accept else ("REVERT-TO-BARE" if revert_to_bare else "reject")
     reason = (f"candidate {cand_mean:.3f} vs current {cur_mean:.3f} "
               f"(bare {bare_mean:.3f}, margin {margin:.3f}, n {cur_n}+{cand_n}) "
@@ -65,10 +84,15 @@ def ab_gate(measure, tasks):
     elif not accept and beats_current:
         reason += ("  [bare floor: beats the current scaffold but loses to NO TEXT "
                    "without NO TEXT beating current — kept as is]")
+    if mixed:
+        reason += ("  [MIXED: categories disagree on the best condition — see "
+                   "per_category; a free targeted delete in the bare-best categories "
+                   "is the precise follow-up]")
     # bool()/float() everywhere: the measurement often arrives as numpy scalars, and
     # a verdict that cannot be json.dumps'd kills the journal write of the very cycle
     # that paid for the A/B
     return {"accept": bool(accept), "revert_to_bare": bool(revert_to_bare),
+            "per_category": per_category, "mixed_verdict": bool(mixed),
             "reason": reason,
             "cand_mean": round(float(cand_mean), 3),
             "cur_mean": round(float(cur_mean), 3),

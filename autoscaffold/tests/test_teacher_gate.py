@@ -105,3 +105,20 @@ def test_verdict_survives_json_with_numpy_inputs():
     dumped = json.dumps(r)
     assert json.loads(dumped)["accept"] is True
     assert json.loads(dumped)["revert_to_bare"] is False
+
+
+def test_mixed_verdict_carries_the_per_category_breakdown():
+    """Aggregate decision, per-category visibility: candidate best in A while bare
+    best in B must be flagged and itemized, or the Teacher cannot target B with a
+    delete — the record only held aggregates before this."""
+    measure = {"bare": {"a": (0.10, 90), "b": (0.60, 90)},
+               "current": {"a": (0.20, 90), "b": (0.40, 90)},
+               "candidate": {"a": (0.50, 90), "b": (0.30, 90)}}
+    r = G.ab_gate(measure, ["a", "b"])
+    # aggregate: cand 0.40 vs cur 0.30, bare 0.35 -> accept, despite b preferring bare
+    assert r["accept"]
+    assert r["mixed_verdict"] and "MIXED" in r["reason"]
+    assert r["per_category"]["a"]["best"] == "candidate"
+    assert r["per_category"]["b"]["best"] == "bare"
+    import json
+    json.dumps(r)   # the breakdown must survive the journal's JSON sinks
