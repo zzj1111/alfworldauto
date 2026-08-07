@@ -38,10 +38,12 @@ Injection (training side)
 - The bare prompt copy (`text_bare`) is captured BEFORE splicing, so the two texts differ
   by exactly the injected block.
 
-bare_prompt_loss
-- `algorithm.bare_prompt_loss.enable` + `mode=both`: swap the prompt to the bare text
-  before old_log_prob, so the loss conditions on the prompt the policy is evaluated
-  under. Config-gated, default off; upstream behavior identical when off.
+bare_prompt_loss — OFF (decision reversed 2026-08-06)
+- The loss conditions on the SAME prompt the rollout used; nothing is swapped.
+- The mechanism (swap the prompt to the bare text before old_log_prob, so every
+  log-prob conditions on the evaluation-time prompt) remains implemented and
+  config-gated for ablations: ARM_BARE_LOSS=True / algorithm.bare_prompt_loss.enable.
+  Verified working on smoke B (n_changed matched the recorder's injected-step count).
 
 Free signals (no measurement pass; read from the rollouts training already wrote)
 - Recorder appends one JSONL row per training episode: uid (group id), task_type,

@@ -39,7 +39,9 @@ if [[ "$MODE" == "scaffold" ]]; then
   export AUTOSCAFFOLD_ROLLOUT_LOG="${AUTOSCAFFOLD_ROLLOUT_LOG:-$STATE_DIR/rollouts.jsonl}"
   export AUTOSCAFFOLD_SEED="${ENV_SEED:-0}"
   SCAFFOLD_ARGS+=(
-    "algorithm.bare_prompt_loss.enable=${ARM_BARE_LOSS:-True}"
+    # OFF by default (decision 2026-08-06): the loss conditions on the SAME prompt the
+    # rollout used. ARM_BARE_LOSS=True re-enables the bare-prompt swap as an ablation.
+    "algorithm.bare_prompt_loss.enable=${ARM_BARE_LOSS:-False}"
     "algorithm.bare_prompt_loss.mode=both"
     # make_envs runs inside a Ray actor; runtime_env carries the flags even when a
     # pre-existing cluster would not inherit shell exports
