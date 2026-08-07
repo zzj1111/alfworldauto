@@ -58,6 +58,24 @@ if [[ -z "${ARM_PYTHON:-}" ]]; then
 fi
 export ARM_PYTHON
 
+# ---------------- vLLM / CUDA toolchain ----------------
+# vllm 0.11's default attention backend JIT-compiles at engine init (FlashInfer),
+# which needs ninja + a matching toolkit and died with FileNotFoundError('ninja') on
+# the very first smoke run. FLASH_ATTN is prebuilt and proven on this machine;
+# ARM_VLLM_ATTN=auto leaves the choice to vllm (the right setting on Blackwell if
+# flash-attn lacks sm_100 kernels).
+if [[ "${ARM_VLLM_ATTN:-FLASH_ATTN}" != "auto" ]]; then
+  export VLLM_ATTENTION_BACKEND="${VLLM_ATTENTION_BACKEND:-${ARM_VLLM_ATTN:-FLASH_ATTN}}"
+fi
+export VLLM_USE_FLASHINFER_SAMPLER="${VLLM_USE_FLASHINFER_SAMPLER:-0}"
+# Detected from the cards actually present; pinning 9.0 on a B200 builds kernels the
+# driver will not load, and leaving it unset makes every JIT build all archs.
+if [[ -z "${TORCH_CUDA_ARCH_LIST:-}" ]]; then
+  _caps="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | sort -u | paste -sd';' -)"
+  [[ -n "$_caps" ]] && export TORCH_CUDA_ARCH_LIST="$_caps"
+  unset _caps
+fi
+
 # ---------------- model + data ----------------
 export ARM_MODEL="${ARM_MODEL:-Qwen/Qwen2.5-1.5B-Instruct}"
 export ALFWORLD_DATA="${ALFWORLD_DATA:-$HOME/.cache/alfworld}"
