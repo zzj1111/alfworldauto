@@ -33,9 +33,11 @@ def test_prompt_promises_no_mechanism_the_code_lacks():
     assert "THE LAST CYCLE ONLY" in p
     assert "RAW episode counts" in p
     assert "nothing is smoothed" in p
-    # the judgment rule as described must match the three-way tournament
-    assert "no lower than the no-text condition" in p
-    assert "UNION" in p and "CLEARS ALL ITEMS" in p
+    # the judgment rule as described must match the per-category tournaments
+    assert "UNION" in p
+    assert "JUDGED AND ACTED ON BY ITS OWN" in p
+    assert "no-text condition" in p and "no lower" in p
+    assert "CLEARED iff no text" in p
 
 
 def test_prompt_constants_match_the_code():

@@ -5,15 +5,18 @@ The rule is candidate mean > current mean over the touched categories, strict, n
 margin (locked 2026-08-05). ARM_AB_NOISE_K restores a standard-error margin for runs
 where the false-accept rate matters more than proposal throughput.
 
-Three-way tournament (user decision 2026-08-07, second revision): the measurement
+Per-category tournaments (user decision 2026-08-07, third revision): the measurement
 covers the UNION of the categories the current scaffold reaches and the proposal
-touches, so every category holding text is measured, and:
+touches, and EACH category is judged on its own numbers (~30 episodes per condition
+at full breadth — the noise cost of that n is accepted by decision):
 
-  1. ACCEPT the candidate iff it beats the current scaffold and scores no lower
-     than no text at all (text losing to nothing has no benefit path);
-  2. else REVERT TO BARE iff no-text strictly beats BOTH current and candidate —
-     the union scope is what makes clearing all text a measurement-supported act;
-  3. else REJECT and keep the current scaffold.
+  per category: ACCEPT the candidate's edits iff candidate > current and >= bare;
+                else REVERT (clear that category's own items) iff bare strictly
+                beats both; else KEEP.
+
+General-scoped text reaches every category, so general edits and general items are
+judged by the same rule on the AGGREGATE over the union — the general text's actual
+audience. The aggregate fields also remain the headline record.
 """
 from __future__ import annotations
 
@@ -66,13 +69,17 @@ def ab_gate(measure, tasks):
         k = measure.get("candidate", {}).get(t)
         if not (b and c and k):
             continue
+        m_t = NOISE_K * ((c[0] * (1 - c[0]) / c[1]) + (k[0] * (1 - k[0]) / k[1])) ** 0.5             if c[1] and k[1] else 0.0
+        acc_t = k[0] > c[0] + m_t and k[0] >= b[0]
+        rev_t = (not acc_t) and b[0] > c[0] and b[0] > k[0]
         best = max(("bare", b[0]), ("current", c[0]), ("candidate", k[0]),
                    key=lambda x: x[1])[0]
         per_category[t] = {"bare": round(float(b[0]), 3),
                            "current": round(float(c[0]), 3),
                            "candidate": round(float(k[0]), 3),
-                           "n": int(b[1]), "best": best}
-    mixed = len({v["best"] for v in per_category.values()}) > 1
+                           "n": int(b[1]), "best": best,
+                           "verdict": "accept" if acc_t else ("revert" if rev_t else "keep")}
+    mixed = len({v["verdict"] for v in per_category.values()}) > 1
     action = "ACCEPT" if accept else ("REVERT-TO-BARE" if revert_to_bare else "reject")
     reason = (f"candidate {cand_mean:.3f} vs current {cur_mean:.3f} "
               f"(bare {bare_mean:.3f}, margin {margin:.3f}, n {cur_n}+{cand_n}) "
@@ -85,9 +92,8 @@ def ab_gate(measure, tasks):
         reason += ("  [bare floor: beats the current scaffold but loses to NO TEXT "
                    "without NO TEXT beating current — kept as is]")
     if mixed:
-        reason += ("  [MIXED: categories disagree on the best condition — see "
-                   "per_category; a free targeted delete in the bare-best categories "
-                   "is the precise follow-up]")
+        reason += ("  [per-category verdicts differ — each category's edits and items "
+                   "are acted on by its own verdict; general text follows the aggregate]")
     # bool()/float() everywhere: the measurement often arrives as numpy scalars, and
     # a verdict that cannot be json.dumps'd kills the journal write of the very cycle
     # that paid for the A/B

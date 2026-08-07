@@ -81,14 +81,17 @@ A/B gate (text changes only)
   categories — resolution must not shrink when the Teacher narrows.
 - Conditions are paired: same games, env order re-seeded before each condition.
 - Measurement scope: the UNION of the proposal's touched categories and the
-  categories the current scaffold reaches (2026-08-07, user decision) — every
-  text-bearing category is measured.
-- Three-way rule: ACCEPT iff candidate > current (strict, no margin — 2026-08-05)
-  and candidate >= bare (floor); else REVERT TO BARE iff bare strictly beats both
-  current and candidate — all items cleared, p kept (inert without text), the
-  proposal's p_ops vetoed, cleared texts journaled; else REJECT. The union scope is
-  what makes the auto-revert measurement-honest (supersedes the same-day
-  no-auto-revert position, which predated the union scope).
+  categories the current scaffold reaches (2026-08-07) — every text-bearing
+  category is measured.
+- PER-CATEGORY tournaments (2026-08-07, third revision, user decision — the ~30
+  episodes/condition resolution at full breadth is accepted): each category's edits
+  apply iff candidate > current and >= bare THERE; its own items are cleared iff
+  bare strictly beats both THERE; else it keeps. General-scoped edits and items
+  follow the same rule on the aggregate (their audience is every category). A p op
+  is vetoed where its category's text lost or reverted; p for untouched categories
+  applies as p-only. Verdict records per_category numbers+verdicts, applied/
+  rejected/reverted sets, and cleared texts; the entry's verdict name is
+  accepted/rejected/reverted_to_bare when unanimous, mixed otherwise.
 - Log the distinct-game pool size and replay factor per category (valid_seen pools are
   28–43 games; 180 episodes over 1–2 categories replays 3–6x).
 - p-only proposals skip the A/B. A p edit co-submitted with text that fails its A/B is

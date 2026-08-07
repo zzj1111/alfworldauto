@@ -80,7 +80,8 @@ def cycle_snapshot(state, cfg):
     if hist:
         last = hist[-1]
         out["teacher/verdict"] = {"accepted": 2, "rejected": 1, "p_only": 3,
-                                  "reverted_to_bare": 4}.get(last.get("verdict"), 0)
+                                  "reverted_to_bare": 4, "mixed": 5}.get(
+            last.get("verdict"), 0)
         ab = last.get("ab") or {}
         for src, dst in (("cand_mean", "candidate"), ("cur_mean", "current"),
                          ("bare_mean", "bare"), ("n", "n")):

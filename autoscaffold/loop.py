@@ -165,40 +165,110 @@ def run_cycle(state, fns, cfg):
             log(f"[c{cyc}] item_ops failed validation late: {e}")
             return _journal(state, fns)
         # UNION scope: the proposal's touched categories plus every category the
-        # CURRENT text reaches — so all text-bearing categories are measured, and a
-        # revert-to-bare only clears what the measurement covered.
+        # CURRENT text reaches. Each category is then judged and ACTED ON by its own
+        # verdict (user decision: per-category at n~30, strict rules); general text
+        # reaches every category and follows the aggregate verdict.
         tasks = sorted(set(S.touched_categories(action["item_ops"], state["scaffold"]))
                        | set(S.reached_categories(state["scaffold"])))
         measure = fns["measure_ab_fn"](ckpt, state["scaffold"], candidate, tasks)
         verdict = gate.ab_gate(measure, tasks)
         entry["ab"] = verdict
         log(f"[c{cyc}] A/B: {verdict['reason']}")
-        if verdict.get("revert_to_bare"):
-            # no text strictly beat both sides over the union: the measured best
-            # scaffold is nothing. Clear every item; p stays (inert without text and
-            # any future item must win an A/B before that p touches a rollout). The
-            # proposal's p_ops die with its text.
-            state["scaffold"], cleared = S.clear_items(state["scaffold"])
-            entry["verdict"] = "reverted_to_bare"
-            entry["p_applied"] = False
-            entry["p_vetoed_with_text"] = bool(action.get("p_ops"))
-            entry["cleared_items"] = cleared
-            _call(fns, "persist_fn", state["scaffold"])
-            log(f"[c{cyc}] scaffold cleared: {len(cleared)} item(s) removed by measurement")
-        elif verdict["accept"]:
-            with_p, p_notes = S.apply_p_ops(candidate, action.get("p_ops"))
-            state["scaffold"] = with_p
-            entry["verdict"] = "accepted"
-            entry["p_applied"] = bool(action.get("p_ops"))
-            entry["apply_notes"] = notes + p_notes
-            _call(fns, "persist_fn", state["scaffold"])
+        percat = verdict.get("per_category", {})
+
+        # ops grouped by the scope they actually change (id ops resolve to their item)
+        general_ops, cat_ops = [], {}
+        for op in action["item_ops"]:
+            scope = op.get("scope") if op.get("op") == "add"                 else S._find(state["scaffold"], op.get("id"))[0]
+            if scope == "general":
+                general_ops.append(op)
+            else:
+                cat_ops.setdefault(scope, []).append(op)
+
+        nxt = state["scaffold"]
+        applied_cats, rejected_cats, reverted_cats = [], [], []
+        cleared = []
+        for cat, ops in sorted(cat_ops.items()):
+            if percat.get(cat, {}).get("verdict") == "accept":
+                try:
+                    nxt, _ = S.apply_item_ops(nxt, ops)
+                    applied_cats.append(cat)
+                except ValueError as e:
+                    entry.setdefault("apply_notes", []).append(f"{cat}: {e}")
+                    rejected_cats.append(cat)
+            else:
+                rejected_cats.append(cat)
+        for cat, pc in sorted(percat.items()):
+            if pc.get("verdict") == "revert":
+                nxt, c = S.clear_category(nxt, cat)
+                cleared += c
+                reverted_cats.append(cat)
+        general_action = None
+        if general_ops:
+            if verdict["accept"]:
+                try:
+                    nxt, _ = S.apply_item_ops(nxt, general_ops)
+                    general_action = "accepted"
+                except ValueError as e:
+                    entry.setdefault("apply_notes", []).append(f"general: {e}")
+                    general_action = "rejected"
+            else:
+                general_action = "rejected"
+        if verdict.get("revert_to_bare") and S.items_of(nxt, "general"):
+            kept = {s2: list(v) for s2, v in nxt["items"].items()}
+            g_cleared = [dict(it, scope="general") for it in kept["general"]]
+            nxt = dict(nxt, items={**kept, "general": []},
+                       version=int(nxt.get("version", 0)) + 1)
+            cleared += g_cleared
+            general_action = general_action or "reverted"
+            reverted_cats.append("general")
+
+        # p per category: vetoed where that category's proposal lost or reverted;
+        # a p op for a category with no text ops in this proposal applies as p-only
+        applied_p, vetoed_p = [], []
+        for op in action.get("p_ops") or []:
+            cat = op.get("task")
+            v = percat.get(cat, {}).get("verdict")
+            if v == "revert" or (cat in cat_ops and v != "accept"):
+                vetoed_p.append(op)
+            else:
+                applied_p.append(op)
+        if applied_p:
+            nxt, p_notes = S.apply_p_ops(nxt, applied_p)
+            if p_notes:
+                entry.setdefault("apply_notes", []).extend(p_notes)
+
+        acts = set()
+        if applied_cats or general_action == "accepted":
+            acts.add("accept")
+        if reverted_cats:
+            acts.add("revert")
+        if rejected_cats or general_action == "rejected":
+            acts.add("reject")
+        if len(acts) > 1 and "accept" in acts:
+            name = "mixed"
+        elif "revert" in acts:
+            name = "reverted_to_bare"
+        elif acts == {"accept"}:
+            name = "accepted"
         else:
-            # p-veto: a p change arriving with rejected text is discarded with it — the
-            # A/B judged the pair, and applying half of it would credit the accept rule
-            # with a change it never saw.
-            entry["verdict"] = "rejected"
-            entry["p_applied"] = False
-            entry["p_vetoed_with_text"] = bool(action.get("p_ops"))
+            name = "rejected"
+
+        changed = bool(applied_cats or reverted_cats or applied_p
+                       or general_action in ("accepted", "reverted"))
+        state["scaffold"] = nxt
+        entry["verdict"] = name
+        entry["applied"] = {"accepted_cats": applied_cats, "rejected_cats": rejected_cats,
+                            "reverted_cats": reverted_cats, "general": general_action,
+                            "p_applied": [op["task"] for op in applied_p],
+                            "p_vetoed": [op["task"] for op in vetoed_p]}
+        entry["p_applied"] = bool(applied_p)
+        entry["p_vetoed_with_text"] = bool(vetoed_p)
+        if cleared:
+            entry["cleared_items"] = cleared
+            log(f"[c{cyc}] cleared {len(cleared)} item(s) in {sorted(set(c['scope'] for c in cleared))}")
+        if changed:
+            _call(fns, "persist_fn", state["scaffold"])
     else:
         with_p, p_notes = S.apply_p_ops(state["scaffold"], action.get("p_ops"))
         state["scaffold"] = with_p

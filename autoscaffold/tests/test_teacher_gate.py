@@ -107,18 +107,27 @@ def test_verdict_survives_json_with_numpy_inputs():
     assert json.loads(dumped)["revert_to_bare"] is False
 
 
-def test_mixed_verdict_carries_the_per_category_breakdown():
-    """Aggregate decision, per-category visibility: candidate best in A while bare
-    best in B must be flagged and itemized, or the Teacher cannot target B with a
-    delete — the record only held aggregates before this."""
+def test_per_category_verdicts_split_a_mixed_measure():
+    """Candidate best in A while bare best in B: A gets verdict accept, B gets
+    verdict revert, and the record itemizes both — each category is acted on by its
+    own numbers (user decision: per-category at n~30)."""
     measure = {"bare": {"a": (0.10, 90), "b": (0.60, 90)},
                "current": {"a": (0.20, 90), "b": (0.40, 90)},
                "candidate": {"a": (0.50, 90), "b": (0.30, 90)}}
     r = G.ab_gate(measure, ["a", "b"])
-    # aggregate: cand 0.40 vs cur 0.30, bare 0.35 -> accept, despite b preferring bare
-    assert r["accept"]
-    assert r["mixed_verdict"] and "MIXED" in r["reason"]
-    assert r["per_category"]["a"]["best"] == "candidate"
-    assert r["per_category"]["b"]["best"] == "bare"
+    assert r["per_category"]["a"]["verdict"] == "accept"
+    assert r["per_category"]["b"]["verdict"] == "revert"
+    assert r["mixed_verdict"] and "per-category verdicts differ" in r["reason"]
+    # aggregate fields remain the record (and rule general-scoped text)
+    assert r["accept"] is True     # cand 0.40 > cur 0.30, >= bare 0.35
     import json
-    json.dumps(r)   # the breakdown must survive the journal's JSON sinks
+    json.dumps(r)                  # must survive the journal's JSON sinks
+
+
+def test_per_category_keep_when_no_side_wins():
+    measure = {"bare": {"a": (0.30, 30)},
+               "current": {"a": (0.35, 30)},
+               "candidate": {"a": (0.32, 30)}}
+    r = G.ab_gate(measure, ["a"])
+    assert r["per_category"]["a"]["verdict"] == "keep"
+    assert not r["accept"] and not r["revert_to_bare"]

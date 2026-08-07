@@ -221,6 +221,18 @@ def reached_categories(scaffold):
     return sorted(reached)
 
 
+def clear_category(scaffold, category):
+    """(new_scaffold, cleared): that category's OWN items removed; general and other
+    categories untouched. The per-category revert action."""
+    import copy as _copy
+    nxt = _copy.deepcopy(scaffold)
+    cleared = [dict(it, scope=category) for it in items_of(nxt, category)]
+    nxt["items"][category] = []
+    if cleared:
+        nxt["version"] = int(nxt.get("version", 0)) + 1
+    return nxt, cleared
+
+
 def clear_items(scaffold):
     """(new_scaffold, cleared): every item removed, p_task kept (inert without text;
     any future item must pass the A/B before that p applies to anything)."""

@@ -66,17 +66,18 @@ WHAT THE SIGNALS MEAN (descriptions, not instructions):
 HOW YOUR EDITS ARE JUDGED. Text changes are A/B tested before they apply: the frozen
 current policy plays HELD-OUT games three ways (no text / current scaffold / your
 candidate), over the UNION of the categories your proposal touches and the categories
-the current scaffold reaches. Outcomes: (1) your candidate applies iff it scores
-strictly above the current scaffold AND no lower than the no-text condition; (2) if
-no text strictly beats BOTH the current scaffold and your candidate, the harness
-CLEARS ALL ITEMS — the measurement says nothing is better than what exists, and your
-next cycle starts from an empty scaffold (p values survive but touch nothing until a
-new item wins an A/B); (3) otherwise the current scaffold stays. The verdict you see in
-decision_history carries a per_category breakdown of all three conditions: when the
-aggregate verdict hides a mixed pattern (your candidate best in one category, no-text
-best in another), the precise follow-up is a free targeted delete in the categories
-where no-text won, next cycle. Rejected or cleared text is recorded; you see all
-numbers next cycle. A p
+the current scaffold reaches — and EACH CATEGORY IS JUDGED AND ACTED ON BY ITS OWN
+NUMBERS (about 30 episodes per condition at full breadth; small-n verdicts can flip
+on a few games — that resolution is a deliberate choice). Per category: your edits
+there apply iff the candidate scores strictly above the current scaffold and no lower
+than the no-text condition; that category's existing items are CLEARED iff no text
+strictly beats both; otherwise it keeps what it has. General-scoped text reaches
+every category, so general edits and general items follow the same rule computed on
+the aggregate over the union. A p change for a category is discarded when that
+category's text lost or was cleared; p for untouched categories applies as a plain
+adjustment. The verdict in decision_history itemizes every category's three numbers
+and its verdict. Rejected or cleared text is recorded; you see all numbers next
+cycle. A p
 change submitted together with text that then fails its A/B is discarded with the
 text, so a p change you want judged on its own should be submitted alone. p-only
 changes skip the A/B.
