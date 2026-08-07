@@ -179,6 +179,9 @@ def eval_adapter(ckpt, cfg):
                          f"an eval must never train or save")
     if not draws:
         return {"avg": None, "per_task": {}, "draws": []}
+    if not draws:
+        raise StepFailed(f"all {cfg['val_n']} eval draws failed at step {step}; "
+                         "refusing to report an average of nothing")
     return {"avg": round(sum(draws) / len(draws), 4),
             "per_task": {k: round(sum(v) / len(v), 4) for k, v in per_task_acc.items()},
             "draws": [round(x, 4) for x in draws]}
