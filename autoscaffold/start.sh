@@ -54,6 +54,19 @@ okay() { echo "  [ok]   $1"; }
   || bad "ARM_PYTHON cannot import verl/agent_system/autoscaffold from this repo" \
          "run from the repo root; install deps per autoscaffold/SETUP.md"
 
+# The repo itself is code 256 Ray workers import in parallel; on a network fs that
+# is an RPC storm (measured: load 39 -> 381 in ten minutes, 384 D-state processes).
+# Data got this check first; the repo earned it the hard way.
+repo_fs=$(df --output=fstype "$ARM_ROOT" 2>/dev/null | tail -1 | tr -d ' ')
+case "$repo_fs" in
+  nfs*|lustre|gpfs|cifs|fuse*) bad "the REPO sits on $repo_fs (network fs)"     "clone to node-local disk and launch from there — parallel worker imports over NFS have taken this node to load 380+" ;;
+  *) okay "repo on $repo_fs" ;;
+esac
+ws_fs=$(df --output=fstype "$ARM_WORKSPACE" 2>/dev/null | tail -1 | tr -d ' ')
+case "$ws_fs" in
+  nfs*|lustre|gpfs|cifs|fuse*) note "workspace on $ws_fs — acceptable only as the checkpoint root (few large writers); keep exp state and logs local" ;;
+esac
+
 if [[ ! -d "$ALFWORLD_DATA/json_2.1.1" ]]; then
   bad "ALFWORLD_DATA=$ALFWORLD_DATA has no json_2.1.1/" \
       "run 'alfworld-download' or point ALFWORLD_DATA at an existing copy — the vendored env silently plays 0 games otherwise"
