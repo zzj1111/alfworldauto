@@ -125,3 +125,36 @@ def test_category_of_gamefile():
     g2 = "/data/json_2.1.1/train/pick_and_place_simple-Pen-None-Shelf-1/trial_y/game.tw-pw"
     assert S.category_of_gamefile(g2) == "pick_and_place"
     assert S.category_of_gamefile("/nothing/here") is None
+
+
+def test_duplicate_delete_is_rejected_and_apply_never_crashes():
+    """A Teacher sending the same delete twice passed validation (the pending set
+    collapsed the duplicate) and then crashed apply_item_ops with a KeyError on
+    items[None] — an uncaught exception inside the training cycle. Found by review."""
+    sc = _with_items(2)
+    victim = S.items_of(sc, "general")[0]["id"]
+    ops = [{"op": "delete", "id": victim}, {"op": "delete", "id": victim}]
+    ok, reason = S.validate_item_ops(ops, sc)
+    assert not ok and "duplicate delete" in reason
+    # belt: even if a double-delete reaches apply, it degrades to a note
+    nxt, notes = S.apply_item_ops(sc, [{"op": "delete", "id": victim}])
+    assert victim not in [it["id"] for it in S.items_of(nxt, "general")]
+
+
+def test_update_duplicating_another_item_is_rejected():
+    sc = _with_items(2)
+    ids = [it["id"] for it in S.items_of(sc, "general")]
+    ok, reason = S.validate_item_ops(
+        [{"op": "update", "id": ids[0], "text": "  Rule NUMBER 1 "}], sc)
+    assert not ok and "duplicates" in reason
+
+
+def test_touched_categories_resolves_the_real_scope_over_a_spurious_one():
+    """An update/delete carries an id; the item's REAL scope decides which categories
+    the edit can change. A spurious 'scope' key on the op must not steer the A/B to
+    the wrong games — a general-item edit measured on one category would be judged on
+    a sixth of the population it changes."""
+    sc = _with_items(1, scope="general")
+    an_id = S.items_of(sc, "general")[0]["id"]
+    op = {"op": "update", "id": an_id, "text": "x", "scope": "pick_and_place"}
+    assert S.touched_categories([op], sc) == list(S.CATEGORIES)

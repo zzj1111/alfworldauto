@@ -110,11 +110,17 @@ def validate_item_ops(ops, scaffold):
                 return False, "update without text"
             if len(text) > MAX_ITEM_CHARS:
                 return False, f"item text over {MAX_ITEM_CHARS} chars"
+            others = {_norm(x["text"]) for x in items_of(scaffold, scope)
+                      if x["id"] != op.get("id")}
+            if _norm(text) in others:
+                return False, f"update duplicates another item in scope {scope!r}"
             n_changes += 1
         elif kind_of_op == "delete":
             scope, it = _find(scaffold, op.get("id"))
             if it is None:
                 return False, f"delete names unknown id {op.get('id')!r}"
+            if op.get("id") in pending_deletes[scope]:
+                return False, f"duplicate delete of {op.get('id')!r}"
             pending_deletes[scope].add(op.get("id"))
         else:
             return False, f"unknown op {kind_of_op!r}"
@@ -140,6 +146,9 @@ def apply_item_ops(scaffold, ops):
     for op in ops:
         if op.get("op") == "delete":
             scope, it = _find(nxt, op["id"])
+            if it is None:
+                notes.append(f"delete {op['id']}: already gone; skipped")
+                continue
             nxt["items"][scope] = [x for x in nxt["items"][scope] if x["id"] != op["id"]]
     for op in ops:
         if op.get("op") == "update":
@@ -202,9 +211,12 @@ def touched_categories(item_ops, scaffold):
     """Categories whose prompts an action can change; 'general' touches all of them."""
     touched = set()
     for op in item_ops or []:
-        scope = op.get("scope")
-        if scope is None and op.get("id"):
+        # For update/delete the item's REAL scope decides what the edit can change;
+        # a spurious 'scope' key on the op must not steer the A/B at the wrong games.
+        if op.get("id"):
             scope, _ = _find(scaffold, op["id"])
+        else:
+            scope = op.get("scope")
         if scope == "general":
             return list(CATEGORIES)
         if scope in CATEGORIES:

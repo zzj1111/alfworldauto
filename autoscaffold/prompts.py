@@ -15,7 +15,7 @@ from . import scaffold as S
 from . import signals as G
 
 PROMPT_BUDGET = int(os.environ.get("AUTOSCAFFOLD_PROMPT_BUDGET", "160000"))
-HISTORY_KEPT = 12
+HISTORY_KEPT = 40   # covers a whole 30-cycle run; entries are small
 
 
 def render_system_prompt():
@@ -42,11 +42,14 @@ WHAT THE SIGNALS MEAN (descriptions, not instructions):
   is random and independent of difficulty, so the sides are comparable. n_bare and
   n_injected are RAW episode counts from that one cycle; nothing is carried over and
   nothing is smoothed — a gap that moves may be real or may be sampling noise at that
-  n, so read the n before the gap. A missing side carries no_injection_reason.
+  n, so read the n before the gap. A category whose injected side is empty carries
+  no_injection_reason naming which of three causes produced it.
 - signals.zero_gradient_groups[cat]: {{total, zero_gradient, all_fail, all_succeed}}
   over complete groups of rollout_n episodes.
-- signals.contrastive_traces[cat]: up to 3 FAILED trajectories from all-fail groups
-  (the longest failure of each) beside the category's 3 shortest successes. Steps are
+- signals.contrastive_traces[cat]: up to 3 FAILED trajectories, drawn from all-fail
+  groups first and topped up from the lowest-success groups when fewer than 3 exist
+  (the longest failure of each; never a successful trajectory), beside the category's
+  3 shortest successes. Steps are
   {{a: executed action, o: observation, v: parsed-ok}}. When nothing failed, the entry
   says no_failures_to_show. Traces may be trimmed to fit; a trimmed packet says so —
   absence of traces never means the category had nothing to show.
@@ -115,7 +118,13 @@ def _trim_traces(traces, fits):
     every category stays represented as long as the budget allows. Successes go before
     failures: the zero-gradient failures are the thing the run is about."""
     cur = {c: dict(v) for c, v in (traces or {}).items()}
+    budget = sum(len(v.get("zero_gradient_failures") or [])
+                 + len(v.get("successes_same_category") or []) for v in cur.values()) + 1
     while not fits(cur):
+        budget -= 1
+        if budget < 0:
+            return {}          # a picker bug must degrade to empty, never hang the cycle
+
         sizes = {c: len(v.get("zero_gradient_failures") or [])
                     + len(v.get("successes_same_category") or [])
                  for c, v in cur.items()}

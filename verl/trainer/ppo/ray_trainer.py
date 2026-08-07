@@ -245,6 +245,17 @@ def swap_to_bare_prompt(batch, tokenizer, config):
         raise ValueError("algorithm.bare_prompt_loss.enable=True but the batch carries "
                          "no 'text_bare' (is AUTOSCAFFOLD_ALFWORLD set so the scaffold "
                          "env manager runs?)")
+    # The rollout loop falls back to anchor_obs when no manager supplies text_bare, so
+    # the None check above can never fire on the vanilla manager — and silently
+    # conditioning the loss on RAW observations would corrupt training without an
+    # error. The bare prompt is a full templated prompt; the anchor is the raw
+    # observation; identical means the fallback happened.
+    anchors = batch.non_tensor_batch.get("anchor_obs")
+    if anchors is not None and all(str(t) == str(a) for t, a in zip(texts, anchors)):
+        raise ValueError("bare_prompt_loss is enabled but every text_bare equals the "
+                         "raw anchor observation — the scaffold env manager is not "
+                         "active (set AUTOSCAFFOLD_ALFWORLD=1), so the swap would train "
+                         "on untemplated observations")
     apply_kwargs = config.data.get("apply_chat_template_kwargs", {}) or {}
     prompt_width = batch.batch["prompts"].shape[-1]
     device = batch.batch["input_ids"].device
@@ -1172,6 +1183,9 @@ class RayPPOTrainer:
                     # ---- autoscaffold hook (inert unless algorithm.bare_prompt_loss.enable) ----
                     _bpl = self.config.algorithm.get("bare_prompt_loss", None)
                     if _bpl is not None and _bpl.get("enable", False):
+                        if _bpl.get("mode", "both") != "both":
+                            raise NotImplementedError(
+                                f"bare_prompt_loss.mode={_bpl.get('mode')!r}; only 'both' exists")
                         batch, _n_swapped = swap_to_bare_prompt(batch, self.tokenizer, self.config)
                         metrics["bare_prompt_loss/n_changed"] = _n_swapped
                     # ---- end autoscaffold hook ----

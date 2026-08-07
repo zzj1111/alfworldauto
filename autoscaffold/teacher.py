@@ -23,7 +23,7 @@ UNREACHABLE_NOTE = "teacher unreachable"
 # Errors meaning no call can succeed this cycle, as opposed to a bad answer. Matched on
 # the message: the openai SDK raises the same class for "retry later" and "no credits".
 _UNREACHABLE = ("insufficient_quota", "credit_balance_exhausted", "no credits",
-                "invalid_api_key", "incorrect api key", "authentication", "401",
+                "invalid_api_key", "incorrect api key", "authentication", "error code: 401",
                 "connection error", "apiconnectionerror")
 
 

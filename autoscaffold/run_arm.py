@@ -56,9 +56,11 @@ def _wandb_run(cfg):
         return None
     try:
         import wandb
+        import re as _re
+        run_id = os.environ.get("WANDB_RUN_ID") or _re.sub(r"[^A-Za-z0-9_-]", "_", cfg["exp"])
         return wandb.init(project=os.environ.get("WANDB_PROJECT"),
                           entity=os.environ.get("WANDB_ENTITY") or None,
-                          id=os.environ.get("WANDB_RUN_ID"), resume="allow",
+                          id=run_id, resume="allow",
                           name=cfg["exp"], reinit=True)
     except Exception as e:
         print(f"[wandb] orchestrator metrics disabled: {type(e).__name__}: {e}")
