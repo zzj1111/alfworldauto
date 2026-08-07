@@ -94,3 +94,17 @@ def test_aggregation_covers_exactly_the_touched_categories():
         "category b's collapse must not leak into a proposal that only touched a"
     both = G.ab_gate(measure, ["a", "b"])
     assert not both["accept"]
+
+
+def test_verdict_survives_json_with_numpy_inputs():
+    """The A/B measurement arrives as numpy scalars from the rollout harness; the
+    verdict feeds json sinks (journal, status.json), and a numpy bool in it killed
+    the journal write of the first real end-to-end A/B."""
+    import json
+    import numpy as np
+    m = {"bare": {"t": (np.float64(0.3333), np.int64(12))},
+         "current": {"t": (np.float64(0.3333), np.int64(12))},
+         "candidate": {"t": (np.float64(0.5), np.int64(12))}}
+    r = G.ab_gate(m, ["t"])
+    dumped = json.dumps(r)
+    assert json.loads(dumped)["accept"] is True

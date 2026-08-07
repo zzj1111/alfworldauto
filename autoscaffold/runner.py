@@ -289,7 +289,7 @@ def _rollout_once(manager, actor, max_steps=50):
                 won[i] = float(infos[i].get("won") or 0.0)
         if done.all():
             break
-    return [(manager.gamefile[i], won[i]) for i in range(n)]
+    return [(manager.gamefile[i], float(won[i])) for i in range(n)]
 
 
 def measure_ab_adapter(ckpt, current, candidate, tasks, cfg):
@@ -368,8 +368,10 @@ def measure_ab_adapter(ckpt, current, candidate, tasks, cfg):
                 mgr._record_path = ""         # the recorder is for training only
                 managers.append(mgr)
                 outcomes = _rollout_once(mgr, actor)
-                wins = sum(w for _, w in outcomes)
-                result[name][cat] = (round(wins / len(outcomes), 4), len(outcomes))
+                wins = float(sum(w for _, w in outcomes))
+                # plain python numbers: numpy scalars here poison every JSON sink
+                # downstream (journal, status.json) with a TypeError
+                result[name][cat] = (round(wins / len(outcomes), 4), int(len(outcomes)))
                 log(f"[ab] {cat} {name}: {wins:.0f}/{len(outcomes)}")
     finally:
         for mgr in managers:

@@ -59,11 +59,16 @@ def ab_gate(measure, tasks):
     if bare_beats_current and not accept:
         reason += ("  [note: the no-text condition outscored the CURRENT scaffold on the "
                    "touched categories — deletion is the measured best edit]")
-    return {"accept": accept, "reason": reason, "cand_mean": round(cand_mean, 3),
-            "cur_mean": round(cur_mean, 3), "bare_mean": round(bare_mean, 3),
-            "blocked_by_bare_floor": blocked_by_bare_floor,
-            "bare_beats_current": bare_beats_current,
-            "margin": round(margin, 4), "n": cur_n + cand_n}
+    # bool()/float() everywhere: the measurement often arrives as numpy scalars, and
+    # a verdict that cannot be json.dumps'd kills the journal write of the very cycle
+    # that paid for the A/B
+    return {"accept": bool(accept), "reason": reason,
+            "cand_mean": round(float(cand_mean), 3),
+            "cur_mean": round(float(cur_mean), 3),
+            "bare_mean": round(float(bare_mean), 3),
+            "blocked_by_bare_floor": bool(blocked_by_bare_floor),
+            "bare_beats_current": bool(bare_beats_current),
+            "margin": round(float(margin), 4), "n": int(cur_n + cand_n)}
 
 
 def update_best(best, best_step, sr, step):
