@@ -51,20 +51,42 @@ def default_cfg():
     }
 
 
+class _WandbPublisher:
+    """Open -> log -> finish, releasing the run id between publishes.
+
+    The orchestrator holding its run OPEN made every trainer subprocess's
+    wandb.init on the SAME id time out after 90s (CommError) — a crashloop of
+    ~3-minute attempts that the fast-fail window never caught. Publishes only
+    happen between subprocesses (after eval, at cycle end; eval subprocesses run
+    with ARM_WANDB=0), so brief exclusive ownership per publish never overlaps
+    the trainer's."""
+
+    def __init__(self, cfg):
+        import re as _re
+        self.cfg = cfg
+        self.run_id = os.environ.get("WANDB_RUN_ID") or _re.sub(
+            r"[^A-Za-z0-9_-]", "_", cfg["exp"])
+
+    def log(self, data, step):
+        try:
+            import wandb
+            run = wandb.init(project=os.environ.get("WANDB_PROJECT"),
+                             entity=os.environ.get("WANDB_ENTITY") or None,
+                             id=self.run_id, resume="allow", name=self.cfg["exp"],
+                             reinit=True,
+                             settings=wandb.Settings(init_timeout=60,
+                                                     _disable_stats=True))
+            run.log(data, step=step)
+            run.finish()
+        except Exception as e:
+            self.cfg.get("log", lambda *a: None)(
+                f"[wandb] publish skipped: {type(e).__name__}: {str(e)[:120]}")
+
+
 def _wandb_run(cfg):
     if os.environ.get("ARM_WANDB", "0") != "1":
         return None
-    try:
-        import wandb
-        import re as _re
-        run_id = os.environ.get("WANDB_RUN_ID") or _re.sub(r"[^A-Za-z0-9_-]", "_", cfg["exp"])
-        return wandb.init(project=os.environ.get("WANDB_PROJECT"),
-                          entity=os.environ.get("WANDB_ENTITY") or None,
-                          id=run_id, resume="allow",
-                          name=cfg["exp"], reinit=True)
-    except Exception as e:
-        print(f"[wandb] orchestrator metrics disabled: {type(e).__name__}: {e}")
-        return None
+    return _WandbPublisher(cfg)
 
 
 def build_fns(cfg):
