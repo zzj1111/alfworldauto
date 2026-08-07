@@ -33,6 +33,8 @@ def test_prompt_promises_no_mechanism_the_code_lacks():
     assert "THE LAST CYCLE ONLY" in p
     assert "RAW episode counts" in p
     assert "nothing is smoothed" in p
+    # the accept rule as described must include the bare floor (2026-08-07 decision)
+    assert "no lower than the no-text condition" in p
 
 
 def test_prompt_constants_match_the_code():

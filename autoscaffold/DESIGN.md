@@ -80,9 +80,13 @@ A/B gate (text changes only)
 - Fixed episode budget per condition: 180 (ARM_AB_EPISODES), split across touched
   categories — resolution must not shrink when the Teacher narrows.
 - Conditions are paired: same games, env order re-seeded before each condition.
-- Accept iff candidate mean > current mean. Strict; no margin (decided 2026-08-05).
-- below_bare flag when an accepted candidate scores under the bare condition (recorded,
-  not vetoed; it has happened twice).
+- Accept iff candidate mean > current mean (strict, no margin — 2026-08-05) AND
+  candidate >= bare (floor — 2026-08-07, user decision: text measuring below no-text
+  has no benefit path and never enters training; it had been accepted twice before).
+- bare_beats_current recorded when the no-text condition outscores the CURRENT
+  scaffold. NOT auto-reverted: the A/B samples only the touched categories, so
+  clearing general/other scopes would act beyond the measurement. Deletion is the
+  Teacher's pathway, informed by per_task_gap every cycle and these three numbers.
 - Log the distinct-game pool size and replay factor per category (valid_seen pools are
   28–43 games; 180 episodes over 1–2 categories replays 3–6x).
 - p-only proposals skip the A/B. A p edit co-submitted with text that fails its A/B is

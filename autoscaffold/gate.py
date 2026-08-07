@@ -5,9 +5,13 @@ The rule is candidate mean > current mean over the touched categories, strict, n
 margin (locked 2026-08-05). ARM_AB_NOISE_K restores a standard-error margin for runs
 where the false-accept rate matters more than proposal throughput.
 
-The bare condition does not enter the rule, but it is measured on the same games and
-can say what the rule cannot: an accepted candidate scoring BELOW bare is text that
-loses to no text, made permanent (nothing rewinds a scaffold). Flagged, not vetoed.
+The bare condition is a FLOOR for acceptance (user decision 2026-08-07): a candidate
+must beat the current scaffold AND score no lower than no text at all. Text that loses
+to nothing has no theory of benefit — injecting it makes injected groups worse, which
+is the opposite of the mechanism. When bare also outscores the CURRENT scaffold, that
+is recorded as bare_beats_current: the measured best edit is deletion, which is the
+Teacher's to make (the A/B samples only the touched categories, so the harness cannot
+justify clearing scopes the measurement never saw).
 """
 from __future__ import annotations
 
@@ -38,19 +42,28 @@ def ab_gate(measure, tasks):
     if not cur_n or not cand_n:
         return {"accept": False, "reason": "missing A/B samples -> reject (keep current)",
                 "cand_mean": round(cand_mean, 3), "cur_mean": round(cur_mean, 3),
-                "bare_mean": round(bare_mean, 3), "below_bare": False, "n": 0}
+                "bare_mean": round(bare_mean, 3), "blocked_by_bare_floor": False,
+                "bare_beats_current": False, "n": 0}
     margin = NOISE_K * ((cur_mean * (1 - cur_mean) / cur_n)
                         + (cand_mean * (1 - cand_mean) / cand_n)) ** 0.5
-    accept = cand_mean > cur_mean + margin
-    below_bare = bool(accept and cand_mean < bare_mean)
+    beats_current = cand_mean > cur_mean + margin
+    blocked_by_bare_floor = bool(beats_current and cand_mean < bare_mean)
+    accept = beats_current and not blocked_by_bare_floor
+    bare_beats_current = bool(bare_mean > cur_mean)
     reason = (f"candidate {cand_mean:.3f} vs current {cur_mean:.3f} "
               f"(bare {bare_mean:.3f}, margin {margin:.3f}, n {cur_n}+{cand_n}) "
-              f"-> {'ACCEPT' if accept else 'reject'}"
-              + ("  [WARNING: accepted text scores BELOW the no-text condition]"
-                 if below_bare else ""))
+              f"-> {'ACCEPT' if accept else 'reject'}")
+    if blocked_by_bare_floor:
+        reason += ("  [bare floor: beats the current scaffold but loses to NO TEXT; "
+                   "such text never enters training]")
+    if bare_beats_current and not accept:
+        reason += ("  [note: the no-text condition outscored the CURRENT scaffold on the "
+                   "touched categories — deletion is the measured best edit]")
     return {"accept": accept, "reason": reason, "cand_mean": round(cand_mean, 3),
             "cur_mean": round(cur_mean, 3), "bare_mean": round(bare_mean, 3),
-            "below_bare": below_bare, "margin": round(margin, 4), "n": cur_n + cand_n}
+            "blocked_by_bare_floor": blocked_by_bare_floor,
+            "bare_beats_current": bare_beats_current,
+            "margin": round(margin, 4), "n": cur_n + cand_n}
 
 
 def update_best(best, best_step, sr, step):

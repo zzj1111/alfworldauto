@@ -65,8 +65,13 @@ WHAT THE SIGNALS MEAN (descriptions, not instructions):
 
 HOW YOUR EDITS ARE JUDGED. Text changes are A/B tested before they apply: the frozen
 current policy plays HELD-OUT games of the touched categories three ways (no text /
-current scaffold / your candidate), and the candidate must score strictly above the
-current scaffold. Rejected text is discarded; you see the numbers next cycle. A p
+current scaffold / your candidate). The candidate must score strictly above the
+current scaffold AND no lower than the no-text condition — text that loses to having
+no text at all never enters training, whatever else it beats. When the no-text
+condition outscores your CURRENT scaffold, the measured best edit is deletion (deletes
+are free and precise per scope; deleting everything that reaches a category makes your
+candidate equal the no-text condition). Rejected text is discarded; you see all three
+numbers next cycle. A p
 change submitted together with text that then fails its A/B is discarded with the
 text, so a p change you want judged on its own should be submitted alone. p-only
 changes skip the A/B.

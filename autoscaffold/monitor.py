@@ -88,7 +88,8 @@ def cycle_snapshot(state, cfg):
                 out[f"ab/{dst}"] = ab[src]
         if ab:
             out["ab/accept"] = int(bool(ab.get("accept")))
-            out["ab/below_bare"] = int(bool(ab.get("below_bare")))
+            out["ab/bare_floor_blocked"] = int(bool(ab.get("blocked_by_bare_floor")))
+            out["ab/bare_beats_current"] = int(bool(ab.get("bare_beats_current")))
         out["teacher/accepted_total"] = sum(1 for e in hist if e.get("verdict") == "accepted")
         out["teacher/cycles_recorded"] = len(hist)
     out["teacher/unreachable_cycles"] = int(state.get("teacher_unreachable_cycles") or 0)
@@ -146,8 +147,9 @@ def warnings_for(s, now=None):
         out.append(f"scaffold still EMPTY at cycle {g('progress/cycle')} — nothing accepted yet")
     if g("scaffold/items", 0) and not (g("scaffold/p_max") or 0):
         out.append("scaffold holds text but p=0 everywhere — it reaches no rollout")
-    if g("ab/below_bare", 0):
-        out.append("the last accepted text scores BELOW the no-text condition")
+    if g("ab/bare_beats_current", 0):
+        out.append("the no-text condition outscored the CURRENT scaffold in the last "
+                   "A/B — existing text may be hurting; deletion is the measured edit")
     if (g("mem/frac") or 0) > 0.85:
         out.append(f"container memory at {g('mem/frac', 0):.0%} of its limit "
                    f"({g('mem/used_gb')}G / {g('mem/limit_gb')}G) — an OOM kill at a "
