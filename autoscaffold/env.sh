@@ -108,13 +108,19 @@ export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-$ARM_GPUS}"
 export ARM_WANDB="${ARM_WANDB:-0}"
 export ARM_WANDB_PROJECT="${ARM_WANDB_PROJECT:-verl_agent_alfworld}"
 if [[ "$ARM_WANDB" == "1" ]]; then
-  export WANDB_PROJECT="${WANDB_PROJECT:-$ARM_WANDB_PROJECT}"
+  export WANDB_PROJECT="$ARM_WANDB_PROJECT"
   # ONE run per experiment: every trainer subprocess and the orchestrator append to
   # the same run instead of each init minting a fresh one.
-  export WANDB_RUN_ID="${ARM_WANDB_RUN_ID:-${WANDB_RUN_ID:-$(printf '%s' "$ARM_EXP" | tr -c 'A-Za-z0-9_-' '_')}}"
+  #
+  # The experiment name is the AUTHORITY here, never an inherited WANDB_RUN_ID. This
+  # file exports the variable, so honoring an existing one made the id sticky per
+  # shell: source env.sh for experiment A, then launch experiment B from that same
+  # shell, and B silently appended to A's run under a different experiment name.
+  # ARM_WANDB_RUN_ID stays as the one explicit override.
+  export WANDB_RUN_ID="${ARM_WANDB_RUN_ID:-$(printf '%s' "$ARM_EXP" | tr -c 'A-Za-z0-9_-' '_')}"
   export WANDB_RESUME="${WANDB_RESUME:-allow}"
-  [[ -n "${ARM_WANDB_ENTITY:-}" ]] && export WANDB_ENTITY="${WANDB_ENTITY:-$ARM_WANDB_ENTITY}"
-  export WANDB_DIR="${WANDB_DIR:-$ARM_WORKSPACE/wandb}"
+  [[ -n "${ARM_WANDB_ENTITY:-}" ]] && export WANDB_ENTITY="$ARM_WANDB_ENTITY"
+  export WANDB_DIR="$ARM_WORKSPACE/wandb"
   mkdir -p "$WANDB_DIR" 2>/dev/null || true
   ARM_TRAINER_LOGGER="['console','wandb']"
 else

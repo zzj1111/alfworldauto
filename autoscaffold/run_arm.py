@@ -67,7 +67,10 @@ class _WandbPublisher:
     def __init__(self, cfg):
         import re as _re
         self.cfg = cfg
-        self.run_id = os.environ.get("WANDB_RUN_ID") or _re.sub(
+        # Derived from the experiment, exactly as env.sh does it. An inherited
+        # WANDB_RUN_ID is deliberately ignored: env.sh exports that variable, so
+        # trusting it made the id sticky across experiments launched from one shell.
+        self.run_id = os.environ.get("ARM_WANDB_RUN_ID") or _re.sub(
             r"[^A-Za-z0-9_-]", "_", cfg["exp"])
 
     def log(self, data, step):
