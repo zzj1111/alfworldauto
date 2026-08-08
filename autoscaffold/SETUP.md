@@ -15,8 +15,7 @@ uv pip install "vllm==0.11.0" "ray[default]" "tensordict>=0.8,!=0.9.0,<=0.10" \
 uv pip install alfworld textworld     # the vendored env's undeclared runtime deps
 uv pip install -e . --no-deps
 
-# ALFWorld game files — MUST be node-local disk, never NFS (the ~18k-file scan on a
-# network filesystem has taken a node to load 400+):
+# ALFWorld game files (~18k small files, scanned at env startup):
 export ALFWORLD_DATA=/scratch/<you>/alfworld_data
 alfworld-download
 

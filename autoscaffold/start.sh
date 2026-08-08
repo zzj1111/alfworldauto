@@ -54,34 +54,20 @@ okay() { echo "  [ok]   $1"; }
   || bad "ARM_PYTHON cannot import verl/agent_system/autoscaffold from this repo" \
          "run from the repo root; install deps per autoscaffold/SETUP.md"
 
-# The repo itself is code 256 Ray workers import in parallel; on a network fs that
-# is an RPC storm (measured: load 39 -> 381 in ten minutes, 384 D-state processes).
-# Data got this check first; the repo earned it the hard way.
-repo_fs=$(df --output=fstype "$ARM_ROOT" 2>/dev/null | tail -1 | tr -d ' ')
-case "$repo_fs" in
-  nfs*|lustre|gpfs|cifs|fuse*) bad "the REPO sits on $repo_fs (network fs)"     "clone to node-local disk and launch from there — parallel worker imports over NFS have taken this node to load 380+" ;;
-  *) okay "repo on $repo_fs" ;;
-esac
-py_fs=$(df --output=fstype "$(dirname "$(readlink -f "$ARM_PYTHON")")" 2>/dev/null | tail -1 | tr -d ' ')
-case "$py_fs" in
-  nfs*|lustre|gpfs|cifs|fuse*) bad "the PYTHON ENVIRONMENT sits on $py_fs (network fs)"     "copy the env to node-local disk (cp -a works; only bin/python is invoked directly) — torch+vllm are thousands of files and 256 workers importing them over NFS is the same storm as the repo case; this exact miss relaunched the storm once" ;;
-  *) okay "python env on $py_fs" ;;
-esac
-ws_fs=$(df --output=fstype "$ARM_WORKSPACE" 2>/dev/null | tail -1 | tr -d ' ')
-case "$ws_fs" in
-  nfs*|lustre|gpfs|cifs|fuse*) note "workspace on $ws_fs — acceptable only as the checkpoint root (few large writers); keep exp state and logs local" ;;
-esac
+# Filesystem type is reported, never judged. A parallel filesystem is the norm on
+# the clusters this runs on, and only the operator knows whether theirs serves 256
+# concurrent importers well. (On the original NFS host it did not — that is what
+# ARM_RAY_TMP on local disk and node-local checkpoints are for.)
+for _p in "$ARM_ROOT:repo" "$(dirname "$(readlink -f "$ARM_PYTHON")"):python env" \
+          "$ARM_WORKSPACE:workspace" "$ALFWORLD_DATA:alfworld data"; do
+  _path="${_p%:*}"; _label="${_p##*:}"
+  _fs=$(df --output=fstype "$_path" 2>/dev/null | tail -1 | tr -d ' ')
+  okay "$_label on ${_fs:-unknown}"
+done
 
 if [[ ! -d "$ALFWORLD_DATA/json_2.1.1" ]]; then
   bad "ALFWORLD_DATA=$ALFWORLD_DATA has no json_2.1.1/" \
       "run 'alfworld-download' or point ALFWORLD_DATA at an existing copy — the vendored env silently plays 0 games otherwise"
-else
-  fstype=$(df --output=fstype "$ALFWORLD_DATA" 2>/dev/null | tail -1 | tr -d ' ')
-  case "$fstype" in
-    nfs*|lustre|gpfs|cifs|fuse*) bad "ALFWORLD_DATA sits on $fstype (network fs)" \
-      "copy it to node-local disk — the ~18k-file scan on NFS has taken a node to load 400+" ;;
-    *) okay "alfworld data on $fstype" ;;
-  esac
 fi
 
 if [[ -z "${OPENAI_API_KEY:-}" && -z "${AUTOSCAFFOLD_OPENAI_KEY_FILE:-}" ]]; then

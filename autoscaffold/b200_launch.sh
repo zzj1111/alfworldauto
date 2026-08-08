@@ -25,7 +25,7 @@ die() { echo "[b200] FATAL: $*" >&2; exit 1; }
 if [[ ! -f .autoscaffold.env ]]; then
   cp .autoscaffold.env.b200 .autoscaffold.env
   say "created .autoscaffold.env from the B200 template — EDIT IT NOW:"
-  say "  - adjust the /scratch/... paths to this machine's node-local disk"
+  say "  - adjust the /scratch/... paths to this machine's mounts"
   say "  - paste OPENAI_API_KEY (and WANDB_API_KEY) at the bottom"
   die "then re-run this script"
 fi
@@ -41,10 +41,6 @@ VENV="${ARM_PYTHON:+$(dirname "$(dirname "$ARM_PYTHON")")}"
 VENV="${VENV:-$ROOT/auto}"
 if [[ ! -x "$VENV/bin/python" ]]; then
   command -v uv >/dev/null || die "uv not found — install with: curl -LsSf https://astral.sh/uv/install.sh | sh"
-  fs=$(df --output=fstype "$ROOT" 2>/dev/null | tail -1 | tr -d ' ')
-  case "$fs" in nfs*|lustre|gpfs|cifs|fuse*)
-    die "repo (and so the venv) sits on $fs — clone to node-local disk first; 256 workers importing torch over a network fs has taken a node to load 400+" ;;
-  esac
   say "building venv at $VENV (torch 2.8.0+cu128, vllm 0.11.0)"
   uv venv "$VENV"
   # shellcheck disable=SC1091
@@ -61,12 +57,8 @@ else
 fi
 export ARM_PYTHON="$VENV/bin/python"
 
-# ---------- 2. ALFWorld game files (node-local, ~18k files) ----------
+# ---------- 2. ALFWorld game files (~18k files) ----------
 if [[ ! -d "$ALFWORLD_DATA/json_2.1.1" ]]; then
-  fs=$(df --output=fstype "$(dirname "$ALFWORLD_DATA")" 2>/dev/null | tail -1 | tr -d ' ')
-  case "$fs" in nfs*|lustre|gpfs|cifs|fuse*)
-    die "ALFWORLD_DATA=$ALFWORLD_DATA is on $fs (network fs) — pick node-local disk" ;;
-  esac
   say "downloading ALFWorld data to $ALFWORLD_DATA"
   mkdir -p "$ALFWORLD_DATA"
   ALFWORLD_DATA="$ALFWORLD_DATA" alfworld-download

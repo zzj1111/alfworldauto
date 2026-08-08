@@ -65,8 +65,7 @@ fi
 
 # Only prepare data when the parquet is missing or the size changed; the file only
 # indicates modality and row count.
-# Overridable: $HOME is NFS on some clusters, and the preflight philosophy is
-# node-local everything.
+# Overridable: $HOME is a shared mount on many clusters.
 DATA_DIR="${ARM_DATA_DIR:-$HOME/data/verl-agent/text}"
 if [[ ! -f "$DATA_DIR/train.parquet" || "$(cat "$DATA_DIR/.size" 2>/dev/null)" != "$train_data_size/$val_data_size" ]]; then
   "$PY" -m examples.data_preprocess.prepare --mode 'text' \
