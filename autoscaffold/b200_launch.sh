@@ -50,6 +50,13 @@ if [[ ! -x "$VENV/bin/python" ]]; then
                  "transformers<=4.57.3" wandb openai pyyaml
   uv pip install alfworld textworld
   uv pip install -e . --no-deps
+  # vllm 0.11 pulls flashinfer-python in, and on Blackwell it JIT-compiles at engine
+  # init for compute_100a — which the CUDA 12.4 toolkit on these nodes cannot target,
+  # so every launch died there. Env vars did not stop it (they only cover the paths
+  # that read them, and the Ray runtime_env copies did not propagate); removing the
+  # package is what forces the prebuilt flash-attn wheel.
+  uv pip uninstall flashinfer-python 2>/dev/null || true
+  rm -rf "$VENV"/lib/python*/site-packages/flashinfer*
 else
   say "venv exists: $VENV — skipping install"
   # shellcheck disable=SC1091

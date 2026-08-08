@@ -68,6 +68,22 @@ if [[ "${ARM_VLLM_ATTN:-FLASH_ATTN}" != "auto" ]]; then
   export VLLM_ATTENTION_BACKEND="${VLLM_ATTENTION_BACKEND:-${ARM_VLLM_ATTN:-FLASH_ATTN}}"
 fi
 export VLLM_USE_FLASHINFER_SAMPLER="${VLLM_USE_FLASHINFER_SAMPLER:-0}"
+export VLLM_USE_FLASHINFER="${VLLM_USE_FLASHINFER:-0}"
+# These env vars only cover the paths that consult them. On the B200 sandbox
+# flashinfer still JIT-compiled and failed: its CUDA 12.4 cannot target compute_100a.
+# Uninstalling the package is what actually forces the flash-attn fallback —
+# b200_launch.sh does that, and check_flashinfer below names it when it is still
+# importable on a Blackwell card.
+if [[ -n "${ARM_ROOT:-}" && -z "${ARM_SKIP_FLASHINFER_CHECK:-}" ]]; then
+  _cc="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1 | tr -d ' .')"
+  if [[ "$_cc" == "100" || "$_cc" == "120" ]] \
+     && "${ARM_PYTHON:-python}" -c "import flashinfer" 2>/dev/null; then
+    echo "  [warn] flashinfer is installed on an sm_${_cc} card — if the engine dies in JIT" >&2
+    echo "         compilation, remove it: pip uninstall -y flashinfer-python (vLLM then" >&2
+    echo "         falls back to the prebuilt flash-attn wheel)" >&2
+  fi
+  unset _cc
+fi
 # Detected from the cards actually present; pinning 9.0 on a B200 builds kernels the
 # driver will not load, and leaving it unset makes every JIT build all archs.
 if [[ -z "${TORCH_CUDA_ARCH_LIST:-}" ]]; then

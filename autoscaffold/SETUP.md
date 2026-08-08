@@ -44,9 +44,19 @@ tail -f <exp_root>/<exp>/run_latest.log
 
 - The env spec above is Blackwell-ready (cu128, vllm 0.11). Do not pin
   TORCH_CUDA_ARCH_LIST to 9.0 — B200 is sm_100.
+- **Remove flashinfer on Blackwell.** vllm 0.11 installs `flashinfer-python`, which
+  JIT-compiles for `compute_100a` at engine init; the CUDA 12.4 toolkit on the B200
+  nodes cannot target that arch, so every launch died there. `VLLM_USE_FLASHINFER=0`,
+  `VLLM_USE_FLASHINFER_SAMPLER=0` and Ray `runtime_env` copies of them all failed to
+  prevent it. What works is deleting the package — `b200_launch.sh` does it after the
+  install, and env.sh warns when it is still importable on an sm_100/sm_120 card:
+
+      pip uninstall -y flashinfer-python
+      rm -rf <venv>/lib/python3.12/site-packages/flashinfer*
+
+  vLLM then falls back to the prebuilt flash-attn wheel, which works.
 - Attention backend: env.sh defaults VLLM_ATTENTION_BACKEND=FLASH_ATTN (prebuilt,
-  proven on H200; vllm 0.11's default JIT-compiles FlashInfer at init and needs
-  ninja). On B200 set ARM_VLLM_ATTN=auto to let vllm choose.
+  proven on H200). ARM_VLLM_ATTN=auto leaves the choice to vllm.
 - The container memory check reads the cgroup limit; /proc/meminfo inside a container
   reports the host and is not trusted.
 - `+data.dataloader_num_workers=0` is already in the training script: the dataset is
