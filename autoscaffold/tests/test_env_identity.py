@@ -30,8 +30,22 @@ def test_a_stale_run_id_from_a_previous_experiment_is_ignored():
 
 def test_a_stale_project_from_a_previous_experiment_is_ignored():
     _, project = _resolve("e", {"WANDB_PROJECT": "someone_elses_project",
-                                "ARM_WANDB_PROJECT": "verl_agent_alfworld"})
-    assert project == "verl_agent_alfworld"
+                                "ARM_WANDB_PROJECT": "chosen_project"})
+    assert project == "chosen_project"
+
+
+def test_the_default_project_is_where_the_baselines_live():
+    """New runs must land beside the AutoScaffold runs they are compared against."""
+    # No site file: this asserts the built-in default, which is what a fresh clone
+    # gets. A site file legitimately overrides it (see the precedence test above).
+    env = {k: v for k, v in os.environ.items() if k != "ARM_WANDB_PROJECT"}
+    out = subprocess.run(
+        ["bash", "-c", f'source "{ROOT}/autoscaffold/env.sh" >/dev/null 2>&1; '
+                       'printf "%s" "$ARM_WANDB_PROJECT"'],
+        env=dict(env, ARM_ROOT=ROOT, ARM_EXP="e", ARM_WANDB="1",
+                 ARM_ENV_FILE="/nonexistent/.autoscaffold.env"),
+        capture_output=True, text=True, timeout=120)
+    assert out.stdout.strip() == "verl_agent_alfworld_inspect"
 
 
 def test_the_explicit_override_still_wins():

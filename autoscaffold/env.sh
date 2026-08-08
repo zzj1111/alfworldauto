@@ -106,7 +106,7 @@ export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-$ARM_GPUS}"
 
 # ---------------- wandb ----------------
 export ARM_WANDB="${ARM_WANDB:-0}"
-export ARM_WANDB_PROJECT="${ARM_WANDB_PROJECT:-verl_agent_alfworld}"
+export ARM_WANDB_PROJECT="${ARM_WANDB_PROJECT:-verl_agent_alfworld_inspect}"
 if [[ "$ARM_WANDB" == "1" ]]; then
   export WANDB_PROJECT="$ARM_WANDB_PROJECT"
   # ONE run per experiment: every trainer subprocess and the orchestrator append to

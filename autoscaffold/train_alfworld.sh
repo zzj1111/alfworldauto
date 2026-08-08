@@ -123,7 +123,7 @@ unset RAY_ADDRESS   # never silently attach to a stale cluster
     env.resources_per_worker.num_cpus=0.1 \
     trainer.critic_warmup=0 \
     trainer.logger="$ARM_TRAINER_LOGGER" \
-    trainer.project_name="${ARM_WANDB_PROJECT:-verl_agent_alfworld}" \
+    trainer.project_name="${ARM_WANDB_PROJECT:-verl_agent_alfworld_inspect}" \
     trainer.experiment_name="$EXP" \
     trainer.n_gpus_per_node="${ARM_N_GPUS:-2}" \
     trainer.nnodes=1 \
