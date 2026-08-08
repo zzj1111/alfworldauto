@@ -122,10 +122,23 @@ def publish(state, cfg, wandb_run=None):
             f.write(json.dumps(stamped, ensure_ascii=False) + "\n")
     except Exception as e:
         log(f"[monitor] disk sinks failed: {type(e).__name__}: {e}")
+    # Disk sinks run on every save; wandb runs once per cycle. The trainer shares that
+    # run and owns wandb's step counter, and a resumed run starts at last+1, so each
+    # publish consumes one step index the trainer then cannot use — two saves per
+    # cycle silently cost two of its ten diagnostic points.
     if wandb_run is not None:
+        cyc = int(state.get("cycle") or 0)
+        hist = state.get("decision_history") or []
+        # The LAST save of a cycle is the complete one: the first happens right after
+        # eval, before the Teacher has decided, so publishing it would report the
+        # cycle with no verdict and no A/B numbers.
+        decided = bool(hist) and int(hist[-1].get("cycle") or 0) == cyc
+        if not decided or cfg.get("_wandb_published_cycle") == cyc:
+            return
         try:
             wandb_run.log({k: v for k, v in snap.items() if isinstance(v, (int, float))},
                           step=int(state.get("step") or 0))
+            cfg["_wandb_published_cycle"] = cyc
         except Exception as e:
             log(f"[monitor] wandb failed: {type(e).__name__}: {e}")
     log(f"[monitor] step={snap.get('progress/step')} "

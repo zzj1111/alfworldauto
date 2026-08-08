@@ -84,10 +84,15 @@ class _WandbPublisher:
                                                      _disable_stats=True))
             payload = dict(data)
             payload.setdefault("progress/step", int(step))
-            # never pass wandb's native step: the trainer owns that counter and is
-            # ahead of us by cycle end, and wandb silently DROPS points logged
-            # behind it. Exact-name define_metric binds our keys to our own x-axis
-            # without touching the trainer's metrics.
+            # The trainer shares this run and owns wandb's native step counter.
+            # define_metric puts our keys on our own x-axis, so our charts are right
+            # whatever the counter does. We deliberately do NOT pass step=: a value
+            # behind the counter is dropped outright, and resume sets the counter to
+            # last+1, so every publish costs one index no matter what we pass —
+            # measured, not assumed (scratch probe against real wandb). The cost is
+            # one trainer diagnostic step per cycle; monitor.publish keeps it to one
+            # publish per cycle for that reason. Zero cost would need a separate run,
+            # which splits the very chart people watch.
             run.define_metric("progress/step")
             for k in payload:
                 if k != "progress/step":
